@@ -1,16 +1,54 @@
-# React + Vite
+# JAMB CBT — Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+React + Vite frontend for the JAMB CBT Simulator.
 
-Currently, two official plugins are available:
+---
+## Prerequisites
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- Node.js v18+
+- Backend API running at `http://localhost:5005`
 
-## React Compiler
+---
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## Setup
 
-## Expanding the ESLint configuration
+**1. Install dependencies**
+```bash
+cd frontend
+npm install
+```
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+**2. Create `.env` file**
+
+Create a `.env` file in the `frontend/` directory:
+```env
+VITE_API_URL=http://localhost:5005/api
+```
+
+> If your backend runs on a different port, update `VITE_API_URL` accordingly.
+
+**3. Start the development server**
+```bash
+npm run dev
+```
+
+The app will be available at `http://localhost:3000`.
+
+---
+
+## Scripts
+
+| Script | Command | Description |
+|--------|---------|-------------|
+| Dev server | `npm run dev` | Start Vite dev server on port 3000 |
+| Build | `npm run build` | Production build to `dist/` |
+| Preview | `npm run preview` | Preview production build locally |
+| Lint | `npm run lint` | Run ESLint |
+
+---
+
+## Environment Variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `VITE_API_URL` | `http://localhost:5005/api` | Base URL for all API requests |
