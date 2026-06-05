@@ -6,6 +6,7 @@ const resultsService = {
   getDashboardStats: ()           => api.get('/results/dashboard'),
   getWeakAreas:      ()           => api.get('/results/weak-areas'),
   getUserResultsById: (userId, params) => api.get('/results', { params: { ...params, userId } }),
+  getAnalytics:      ()           => api.get('/results/analytics'),
   
 }
 

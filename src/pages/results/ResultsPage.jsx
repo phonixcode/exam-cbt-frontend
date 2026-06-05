@@ -191,6 +191,59 @@ const ResultsPage = () => {
         </motion.div>
       )}
 
+      {/* Post-exam weak areas for this exam */}
+      {result?.answers && (() => {
+        // Group wrong answers by subject
+        const wrongBySubject = {}
+        result.answers.forEach(ans => {
+          if (!ans.isCorrect && ans.question) {
+            const subj = ans.question.subject
+            if (!wrongBySubject[subj]) wrongBySubject[subj] = 0
+            wrongBySubject[subj]++
+          }
+        })
+        const entries = Object.entries(wrongBySubject).sort((a, b) => b[1] - a[1])
+        if (entries.length === 0) return null
+
+        return (
+          <motion.div
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.4 }}
+            className="bg-zinc-900 border border-zinc-800 rounded-3xl p-5 mb-4"
+          >
+            <p className="text-zinc-400 text-[12px] uppercase tracking-widest mb-4 font-semibold">
+              What to focus on next
+            </p>
+            <div className="space-y-2.5">
+              {entries.map(([subject, count]) => {
+                const total = result.answers.filter(a => a.question?.subject === subject).length
+                const pct   = Math.round((count / total) * 100)
+                return (
+                  <div key={subject}>
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-zinc-300 text-[13px] capitalize font-medium">{subject}</span>
+                      <span className="text-red-400 text-[12px]">{count} wrong ({pct}%)</span>
+                    </div>
+                    <div className="h-1.5 bg-zinc-800 rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-red-500/60 rounded-full"
+                        style={{ width: `${pct}%` }}
+                      />
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+            <Link to={ROUTES.REVIEW + '/' + result._id}>
+              <button className="w-full mt-4 h-10 rounded-xl border border-zinc-700 text-zinc-400 text-[13px] hover:text-white hover:border-zinc-600 transition-all">
+                Review all answers →
+              </button>
+            </Link>
+          </motion.div>
+        )
+      })()}
+
       {/* ── Exam info ─────────────────────────────────── */}
       <motion.div
         initial={{ opacity: 0, y: 10 }}

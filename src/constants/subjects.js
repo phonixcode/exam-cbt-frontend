@@ -39,7 +39,7 @@ export const EXAM_MODES = [
   {
     value:       'mock',
     label:       'Full Mock Exam',
-    description: '4 subjects · 240 questions · JAMB format',
+    description: '4 subjects · 180 questions · JAMB format',
     icon:        Target,
   },
 ]
@@ -59,4 +59,5 @@ export const SELECTION_TYPES = [
   },
 ]
 
-export const JAMB_TIME_ALLOWED = 6000 // 1hr 40min in seconds
+export const JAMB_MOCK_TIME    = 7200  // 2 hours — full mock (180 questions)
+export const JAMB_TIME_ALLOWED = 7200  // default fallback

@@ -17,6 +17,7 @@ import { DashboardSkeleton }    from '@/components/shared/Skeleton'
 import { formatDuration, formatDate } from '@/utils/time.utils'
 import { getGrade, getScoreColor, calcPercentage } from '@/utils/score.utils'
 import { buildRoute, ROUTES }   from '@/constants/routes'
+import { useQuery } from '@tanstack/react-query'
 
 // ── Custom tooltip for chart ──────────────────────────────
 const CustomTooltip = ({ active, payload }) => {
@@ -87,6 +88,11 @@ const DashboardPage = () => {
       setLoading(false)
     }).catch(() => setLoading(false))
   }, [])
+
+  const { data: analytics } = useQuery({
+    queryKey: ['analytics'],
+    queryFn:  () => resultsService.getAnalytics?.() || resultsService.getDashboardStats(),
+  })
 
   if (loading) return <DashboardSkeleton />
 
@@ -395,6 +401,84 @@ const DashboardPage = () => {
                 </motion.div>
               )
             })}
+          </div>
+        </motion.div>
+      )}
+
+
+      {/* Score Trend */}
+      {analytics?.scoreTrend?.length > 0 && (
+        <motion.div className="bg-zinc-900 border border-zinc-800 rounded-3xl p-5 mb-4">
+          <p className="text-zinc-400 text-[12px] uppercase tracking-widest mb-4 font-semibold">Score Trend</p>
+          <ResponsiveContainer width="100%" height={120}>
+            <LineChart data={analytics.scoreTrend}>
+              <XAxis dataKey="date" hide />
+              <YAxis domain={[0, 400]} hide />
+              <Tooltip
+                formatter={(v) => [`${v} pts`]}
+                contentStyle={{ background: '#18181b', border: '1px solid #27272a', borderRadius: 12 }}
+                labelStyle={{ display: 'none' }}
+              />
+              <Line type="monotone" dataKey="jambTotal" stroke="#3b82f6" strokeWidth={2} dot={false} />
+            </LineChart>
+          </ResponsiveContainer>
+        </motion.div>
+      )}
+
+      {/* Subject breakdown */}
+      {analytics?.subjectStats?.length > 0 && (
+        <motion.div className="bg-zinc-900 border border-zinc-800 rounded-3xl p-5 mb-4">
+          <p className="text-zinc-400 text-[12px] uppercase tracking-widest mb-4 font-semibold">Subject Performance</p>
+          <div className="space-y-3">
+            {analytics.subjectStats.map(s => (
+              <div key={s.subject}>
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-zinc-300 text-[13px] capitalize font-medium">{s.subject}</span>
+                  <span className={`text-[13px] font-bold ${s.average >= 60 ? 'text-emerald-400' : s.average >= 40 ? 'text-amber-400' : 'text-red-400'}`}>
+                    {s.average}%
+                  </span>
+                </div>
+                <div className="h-2 bg-zinc-800 rounded-full overflow-hidden">
+                  <motion.div
+                    initial={{ width: 0 }}
+                    animate={{ width: `${s.average}%` }}
+                    transition={{ duration: 0.8, ease: 'easeOut' }}
+                    className={`h-full rounded-full ${s.average >= 60 ? 'bg-emerald-500' : s.average >= 40 ? 'bg-amber-500' : 'bg-red-500'}`}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+        </motion.div>
+      )}
+
+      {/* Predicted score */}
+      {analytics?.predictedScore && (
+        <motion.div className="bg-gradient-to-br from-blue-600/10 to-violet-600/10 border border-blue-500/20 rounded-3xl p-5 mb-4">
+          <p className="text-zinc-400 text-[12px] uppercase tracking-widest mb-1 font-semibold">Predicted JAMB Score</p>
+          <p className="text-white text-[42px] font-bold leading-none">{analytics.predictedScore}<span className="text-zinc-500 text-[18px] font-normal">/400</span></p>
+          <p className="text-zinc-500 text-[12px] mt-1">Based on your last 5 practice exams</p>
+        </motion.div>
+      )}
+
+      {/* Weak areas */}
+      {analytics?.weakSubjects?.length > 0 && (
+        <motion.div className="bg-zinc-900 border border-zinc-800 rounded-3xl p-5 mb-4">
+          <p className="text-zinc-400 text-[12px] uppercase tracking-widest mb-4 font-semibold">Focus Areas</p>
+          <div className="space-y-2">
+            {analytics.weakSubjects.map(s => (
+              <div key={s.subject} className="flex items-center justify-between p-3 bg-red-500/5 border border-red-500/10 rounded-2xl">
+                <div>
+                  <p className="text-zinc-300 text-[13px] capitalize font-medium">{s.subject}</p>
+                  <p className="text-red-400 text-[11px]">{s.average}% average · needs work</p>
+                </div>
+                <Link to={ROUTES.HOME}>
+                  <button className="text-[11px] px-3 py-1.5 rounded-xl bg-zinc-800 border border-zinc-700 text-zinc-400 hover:text-white transition-colors">
+                    Practice →
+                  </button>
+                </Link>
+              </div>
+            ))}
           </div>
         </motion.div>
       )}

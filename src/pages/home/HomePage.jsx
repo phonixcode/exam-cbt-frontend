@@ -2,8 +2,7 @@ import { useState, useEffect }     from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useNavigate }             from 'react-router-dom'
 import {
-  BookCopy, Target, Shuffle, Calendar, BookOpen,
-  ArrowRight, GraduationCap,
+  BookOpen, ArrowRight, GraduationCap,
   Zap, Clock, BarChart3, AlertTriangle,
   PlayCircle, X
 } from 'lucide-react'
@@ -12,14 +11,14 @@ import useExam             from '@/hooks/useExam'
 import useExamStore        from '@/store/exam.store'
 import examService         from '@/services/exam.service'
 import { SUBJECTS, YEARS, EXAM_MODES, SELECTION_TYPES } from '@/constants/subjects'
-import { formatDuration }  from '@/utils/time.utils'
 import { buildRoute, ROUTES } from '@/constants/routes'
 import questionService from '@/services/question.service'
+import { COURSES } from '@/constants/courses'
 
 const QUICK_STATS = [
   { icon: Zap,       label: 'Avg session',  value: '40 mins'  },
-  { icon: Clock,     label: 'Time allowed', value: '1hr 40m'  },
-  { icon: BarChart3, label: 'Questions',    value: '60/subject'},
+  { icon: Clock,     label: 'Time allowed', value: '2 hours'  },
+  { icon: BarChart3, label: 'Questions',    value: '40–60'     },
 ]
 
 const SectionLabel = ({ children }) => (
@@ -40,9 +39,9 @@ const HomePage = () => {
   const navigate                              = useNavigate()
   const { setSession }                        = useExamStore()
   const [ongoingSession, setOngoingSession]   = useState(null)
-  const [checkingOngoing, setCheckingOngoing] = useState(true)
   const [showOngoingModal, setShowOngoingModal] = useState(false)
   const [availableSubjects, setAvailableSubjects] = useState(SUBJECTS)
+  const [course, setCourse]                   = useState('')
 
   useEffect(() => {
     questionService.getFilters()
@@ -72,7 +71,6 @@ const HomePage = () => {
         setShowOngoingModal(true)
       })
       .catch(() => {})
-      .finally(() => setCheckingOngoing(false))
   }, [])
 
   const handleResumeExam = () => {
@@ -87,7 +85,7 @@ const HomePage = () => {
       await examService.abandonExam(ongoingSession._id)
       setOngoingSession(null)
       setShowOngoingModal(false)
-    } catch {}
+    } catch { /* ignore */ }
   }
 
   const toggleSubject = (val) => {
@@ -121,7 +119,6 @@ const HomePage = () => {
       const available = filters.data
 
       for (const subject of selectedSubjects) {
-        const subjectYears = available.years || []
         const hasQuestions = available.subjects?.includes(subject)
 
         if (!hasQuestions) {
@@ -129,7 +126,7 @@ const HomePage = () => {
           return
         }
       }
-    } catch {}
+    } catch { /* ignore */ }
 
     startExam({
       mode,
@@ -137,6 +134,7 @@ const HomePage = () => {
       selectionType,
       yearFrom:      selectionType === 'specific' ? specificYear : yearFrom,
       yearTo:        selectionType === 'specific' ? specificYear : yearTo,
+      course
     })
   }
 
@@ -193,7 +191,7 @@ const HomePage = () => {
               <motion.button
                 key={value}
                 whileTap={{ scale: 0.97 }}
-                onClick={() => { setMode(value); setSelectedSubjects([]) }}
+                onClick={() => { setMode(value); setSelectedSubjects([]); setCourse('') }}
                 className={`relative p-4 rounded-2xl border text-left transition-all duration-200
                   ${selected
                     ? 'bg-blue-600 border-blue-600 shadow-lg shadow-blue-500/20'
@@ -225,7 +223,70 @@ const HomePage = () => {
         </div>
       </motion.div>
 
+      {/* ── Course / Department (mock mode only) ─────── */}
+      {mode === 'mock' && (
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.12 }}
+          className="mb-6"
+        >
+          <SectionLabel>Your Course / Department</SectionLabel>
+          <div className="grid grid-cols-2 gap-2 mb-4">
+            {COURSES.map(c => {
+              const selected = course === c.value
+              const Icon = c.icon
+              return (
+                <motion.button
+                  key={c.value}
+                  whileTap={{ scale: 0.97 }}
+                  onClick={() => {
+                    setCourse(c.value)
+                    if (c.subjects.length > 0) setSelectedSubjects(c.subjects)
+                    else setSelectedSubjects([])
+                  }}
+                  className={`flex items-center gap-2.5 p-3 rounded-2xl border text-left transition-all
+                    ${selected
+                      ? 'bg-blue-600/10 border-blue-500/40'
+                      : 'bg-zinc-900 border-zinc-800 hover:border-zinc-700'
+                    }`}
+                >
+                  <Icon size={16} className={`shrink-0 ${selected ? 'text-blue-400' : 'text-zinc-500'}`} />
+                  <span className={`text-[12px] font-medium leading-tight ${selected ? 'text-blue-400' : 'text-zinc-400'}`}>
+                    {c.label}
+                  </span>
+                </motion.button>
+              )
+            })}
+          </div>
+
+          {selectedSubjects.length > 0 && course !== 'custom' && (
+            <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-3">
+              <p className="text-zinc-500 text-[11px] uppercase tracking-widest mb-2">Subjects for this exam</p>
+              <div className="flex flex-wrap gap-2">
+                {selectedSubjects.map(s => {
+                  const subj = availableSubjects.find(x => x.value === s)
+                  if (!subj) return null
+                  const SubjIcon = subj.icon
+                  return (
+                    <div key={s} className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-600/10 border border-blue-500/30">
+                      <SubjIcon size={12} className="text-blue-400" />
+                      <span className="text-blue-400 text-[12px] font-medium">{subj.label}</span>
+                    </div>
+                  )
+                })}
+              </div>
+              <p className="text-zinc-600 text-[11px] mt-2">
+                Use of English: 60 questions · Others: 40 questions each · Total:{' '}
+                {selectedSubjects.reduce((t, s) => t + (s === 'use of english' ? 60 : 40), 0)} questions
+              </p>
+            </div>
+          )}
+        </motion.div>
+      )}
+
       {/* ── Subject selection ──────────────────────────── */}
+      {(mode !== 'mock' || !course || course === 'custom') && (
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
@@ -285,6 +346,7 @@ const HomePage = () => {
           })}
         </div>
       </motion.div>
+      )}
 
       {/* ── Year selection ─────────────────────────────── */}
       <motion.div
@@ -428,8 +490,8 @@ const HomePage = () => {
 
         <p className="text-center text-[12px] text-zinc-600 mt-3">
           {mode === 'single'
-            ? `60 questions · 25 mins per subject`
-            : `240 questions · 1hr 40mins · 4 subjects`
+            ? `40–60 questions depending on subject`
+            : `180 questions · Use of English 60 · Others 40 each`
           }
         </p>
       </motion.div>

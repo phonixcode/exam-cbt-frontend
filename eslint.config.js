@@ -23,7 +23,14 @@ export default defineConfig([
       },
     },
     rules: {
-      'no-unused-vars': ['error', { varsIgnorePattern: '^[A-Z_]' }],
+      // varsIgnorePattern: uppercase vars (Icon, AnimatePresence…) are allowed unused
+      // because ESLint can't track JSX component usage without eslint-plugin-react.
+      // Also allow `motion` which is used as motion.div / motion.button namespace.
+      'no-unused-vars': ['error', {
+        varsIgnorePattern: '^[A-Z_]|^motion$',
+        args: 'none',
+        ignoreRestSiblings: true,
+      }],
     },
   },
 ])

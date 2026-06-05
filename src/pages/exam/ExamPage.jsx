@@ -1,9 +1,10 @@
-import { useEffect, useCallback, useState }  from 'react'
+import { useEffect, useCallback, useState } from 'react'
 import { useParams, useNavigate, Navigate }  from 'react-router-dom'
 import { motion, AnimatePresence }           from 'framer-motion'
 import {
   Flag, Calculator as CalcIcon, ChevronLeft,
-  ChevronRight, Send, AlertTriangle, X, BookOpen
+  ChevronRight, Send, AlertTriangle, X, BookOpen,
+  LayoutGrid
 } from 'lucide-react'
 import useExam             from '@/hooks/useExam'
 import useTimer            from '@/hooks/useTimer'
@@ -12,10 +13,10 @@ import examService         from '@/services/exam.service'
 import { formatTime, getTimerColor } from '@/utils/time.utils'
 import { JAMB_TIME_ALLOWED }         from '@/constants/subjects'
 import { buildRoute, ROUTES }        from '@/constants/routes'
-import QuestionGrid        from '@/components/exam/QuestionGrid'
 import OptionButton        from '@/components/exam/OptionButton'
 import Calculator          from '@/components/exam/Calculator'
 import useAuthStore from '@/store/auth.store'
+import toast from 'react-hot-toast'
 
 const ExamPage = () => {
   const { sessionId }  = useParams()
@@ -32,13 +33,13 @@ const ExamPage = () => {
 
   const { setSession } = useExamStore()
 
-  const [loading, setLoading]         = useState(!session)
-  const [showGrid, setShowGrid]       = useState(false)
-  const [showCalc, setShowCalc]       = useState(false)
-  const [showSubmit, setShowSubmit]   = useState(false)
-  const [typedAnswer, setTypedAnswer] = useState('')
+  const [loading, setLoading]       = useState(!session)
+  const [showPanel, setShowPanel]       = useState(false)
+  const [showCalc, setShowCalc]         = useState(false)
+  const [showSubmit, setShowSubmit]     = useState(false)
+  const [typedDrafts, setTypedDrafts]   = useState({})   // keyed by questionId
+  const [panelSubject, setPanelSubject] = useState(null)
 
-  // load session if page refreshed
   useEffect(() => {
     if (!session) {
       examService.getSession(sessionId)
@@ -49,25 +50,29 @@ const ExamPage = () => {
     }
   }, [sessionId])
 
-  // reset typed answer on question change
-  useEffect(() => {
-    setTypedAnswer(currentAnswer?.userAnswer || '')
-  }, [currentIndex])
 
-  const handleTimeUp = useCallback(() => {
-    submitExam(session?.timeAllowed || JAMB_TIME_ALLOWED)
-  }, [submitExam, session])
-
-  const { timeRemaining } = useTimer({ onTimeUp: handleTimeUp, autoStart: true })
+  const { timeRemaining } = useTimer({
+    onTimeUp: useCallback(() => {
+      if (!isSubmitting) {
+        toast('Time is up! Submitting your exam...', { duration: 3000 })
+        setTimeout(() => submitExam(session?.timeAllowed), 500)
+      }
+    }, [isSubmitting, submitExam, session]),
+    autoStart: true
+  })
 
   const handleAnswer = (answer) => {
     if (!currentAnswer) return
     answerQuestion(currentAnswer.question._id, answer)
   }
 
+  const qId = currentAnswer?.question?._id
+  const typedAnswer = typedDrafts[qId] ?? (currentAnswer?.userAnswer || '')
+  const setTypedAnswer = (val) => setTypedDrafts(d => ({ ...d, [qId]: val }))
+
   const handleTypedSubmit = () => {
     if (!typedAnswer.trim()) return
-    answerQuestion(currentAnswer.question._id, typedAnswer.trim())
+    answerQuestion(qId, typedAnswer.trim())
   }
 
   const handleFlag = () => {
@@ -96,9 +101,20 @@ const ExamPage = () => {
   const selectedAnswer = currentAnswer?.userAnswer
   const isFlagged      = currentAnswer?.isFlagged
   const isMCQ          = question?.type === 'mcq'
-  const timerColor     = getTimerColor(timeRemaining, JAMB_TIME_ALLOWED)
-  const progress       = (totalAnswered / totalQuestions) * 100
+  const timerColor     = getTimerColor(timeRemaining, session.timeAllowed || JAMB_TIME_ALLOWED)
   const subject        = currentAnswer?.question?.subject || session.subjects[0]
+
+  // current subject question index (for label)
+  const subjAnswers    = session.answers.filter(a => a.question?.subject === subject)
+  const subjIdx        = subjAnswers.findIndex(a => a.question?._id === currentAnswer?.question?._id)
+  const subjTotal      = subjAnswers.length
+  const unanswered     = totalQuestions - totalAnswered
+
+  // panel subject answers
+  const activePanelSubj = panelSubject || session.subjects[0]
+  const panelAnswers    = session.answers
+    .map((a, idx) => ({ ...a, idx }))
+    .filter(a => a.question?.subject === activePanelSubj)
 
   return (
     <div className="min-h-screen bg-[#09090b] flex flex-col">
@@ -107,16 +123,14 @@ const ExamPage = () => {
       <header className="sticky top-0 z-30 bg-[#09090b]/95 backdrop-blur-xl border-b border-zinc-800/50">
         <div className="px-3 pt-2 pb-1">
 
-          {/* Row 1: Subject tabs + Timer */}
+          {/* Subject tabs + Timer */}
           <div className="flex items-center gap-2 mb-1.5">
-
-            {/* Subject tabs — scrollable */}
             <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none flex-1 min-w-0">
               {session.subjects.map((subj) => {
-                const subjAnswers  = session.answers.filter(a => a.question?.subject === subj)
-                const subjAnswered = subjAnswers.filter(a => a.userAnswer !== null).length
-                const subjTotal    = subjAnswers.length
-                const isActive     = subj === subject
+                const sAnswers  = session.answers.filter(a => a.question?.subject === subj)
+                const sAnswered = sAnswers.filter(a => a.userAnswer !== null).length
+                const sTotal    = sAnswers.length
+                const isActive  = subj === subject
 
                 return (
                   <motion.button
@@ -133,17 +147,17 @@ const ExamPage = () => {
                       }`}
                   >
                     <span className="capitalize">
-                      {subj.length > 4 ? subj.slice(0, 4) + '.' : subj}
+                      {subj === 'use of english' ? 'Use.' : subj.length > 4 ? subj.slice(0, 4) + '.' : subj}
                     </span>
                     <span className={`text-[9px] px-1 py-0.5 rounded-md font-bold
                       ${isActive
                         ? 'bg-white/20 text-white'
-                        : subjAnswered === subjTotal && subjTotal > 0
+                        : sAnswered === sTotal && sTotal > 0
                           ? 'bg-emerald-500/20 text-emerald-400'
                           : 'bg-zinc-800 text-zinc-500'
                       }`}
                     >
-                      {subjAnswered}/{subjTotal}
+                      {sAnswered}/{sTotal}
                     </span>
                   </motion.button>
                 )
@@ -156,15 +170,15 @@ const ExamPage = () => {
             </div>
           </div>
 
-          {/* Row 2: Progress bar */}
+          {/* Per-subject progress bar */}
           <div className="flex items-center gap-2">
             <div className="flex-1 h-1 bg-zinc-800 rounded-full overflow-hidden flex gap-px">
               {session.subjects.map((subj) => {
-                const subjAnswers  = session.answers.filter(a => a.question?.subject === subj)
-                const subjAnswered = subjAnswers.filter(a => a.userAnswer !== null).length
-                const subjTotal    = subjAnswers.length
-                const pct          = subjTotal > 0 ? (subjAnswered / subjTotal) * 100 : 0
-                const segWidth     = 100 / session.subjects.length
+                const sAnswers  = session.answers.filter(a => a.question?.subject === subj)
+                const sAnswered = sAnswers.filter(a => a.userAnswer !== null).length
+                const sTotal    = sAnswers.length
+                const pct       = sTotal > 0 ? (sAnswered / sTotal) * 100 : 0
+                const segWidth  = 100 / session.subjects.length
                 return (
                   <div key={subj} className="h-full bg-zinc-800 overflow-hidden" style={{ width: `${segWidth}%` }}>
                     <motion.div
@@ -182,37 +196,30 @@ const ExamPage = () => {
       </header>
 
       {/* ── Main content ─────────────────────────────── */}
-      <div className="flex-1 w-full max-w-3xl mx-auto px-3 py-4 pb-72">
+      <div className="flex-1 w-full max-w-3xl mx-auto px-3 py-4 pb-36">
 
         {/* Question label */}
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-1.5">
             <span className="text-zinc-600 text-[12px]">Question</span>
-            {session.mode === 'mock' ? (() => {
-              const subjAnswers = session.answers.filter(a => a.question?.subject === subject)
-              const subjIdx     = subjAnswers.findIndex(a => a.question?._id === currentAnswer?.question?._id)
-              return (
-                <>
-                  <span className="text-white text-[12px] font-bold">{subjIdx + 1}</span>
-                  <span className="text-zinc-700 text-[12px]">of {subjAnswers.length}</span>
-                  <span className="text-zinc-800 mx-0.5">·</span>
-                  <span className="text-zinc-500 text-[11px] capitalize">{subject}</span>
-                </>
-              )
-            })() : (
+            <span className="text-white text-[12px] font-bold">
+              {session.mode === 'mock' ? subjIdx + 1 : currentIndex + 1}
+            </span>
+            <span className="text-zinc-700 text-[12px]">
+              of {session.mode === 'mock' ? subjTotal : totalQuestions}
+            </span>
+            {session.mode === 'mock' && (
               <>
-                <span className="text-white text-[12px] font-bold">{currentIndex + 1}</span>
-                <span className="text-zinc-700 text-[12px]">of {totalQuestions}</span>
+                <span className="text-zinc-800 mx-0.5">·</span>
+                <span className="text-zinc-500 text-[11px] capitalize">{subject}</span>
               </>
             )}
           </div>
-          <div className="flex items-center gap-2">
-            {isFlagged && (
-              <span className="flex items-center gap-1 text-amber-400 text-[10px] bg-amber-400/10 border border-amber-400/20 px-2 py-0.5 rounded-lg">
-                <Flag size={9} /> Flagged
-              </span>
-            )}
-          </div>
+          {isFlagged && (
+            <span className="flex items-center gap-1 text-amber-400 text-[10px] bg-amber-400/10 border border-amber-400/20 px-2 py-0.5 rounded-lg">
+              <Flag size={9} /> Flagged
+            </span>
+          )}
         </div>
 
         {/* Passage */}
@@ -313,82 +320,46 @@ const ExamPage = () => {
       <div className="fixed bottom-0 left-0 right-0 z-30 bg-[#09090b]/95 backdrop-blur-xl border-t border-zinc-800/50">
         <div className="max-w-3xl mx-auto px-3 pt-2" style={{ paddingBottom: 'max(10px, env(safe-area-inset-bottom))' }}>
 
-          {/* ── Question number grid ───────────────────── */}
-          <div className="mb-2">
-            <div className="flex items-center justify-between mb-1">
-              <span className="text-zinc-700 text-[10px] uppercase tracking-widest">
-                {session.mode === 'mock' ? `${subject} questions` : 'Questions'}
+          {/* Progress / browse row */}
+          <button
+            onClick={() => { setShowPanel(true); setPanelSubject(subject) }}
+            className="w-full flex items-center justify-between px-3 py-2 mb-2 rounded-xl bg-zinc-900/60 border border-zinc-800/60 hover:border-zinc-700 transition-all"
+          >
+            <div className="flex items-center gap-2">
+              <LayoutGrid size={12} className="text-zinc-500" />
+              <span className="text-zinc-400 text-[12px]">
+                {session.mode === 'mock'
+                  ? `Q${subjIdx + 1} of ${subjTotal} · ${subject}`
+                  : `Question ${currentIndex + 1} of ${totalQuestions}`
+                }
               </span>
-              <div className="flex items-center gap-2">
-                {[
-                  { color: 'bg-emerald-500/20', label: 'Done'    },
-                  { color: 'bg-zinc-800',        label: 'Todo'    },
-                  { color: 'bg-amber-500/20',    label: 'Flagged' },
-                ].map(({ color, label }) => (
-                  <div key={label} className="flex items-center gap-1">
-                    <div className={`w-2.5 h-2.5 rounded-md ${color}`} />
-                    <span className="text-zinc-700 text-[9px]">{label}</span>
-                  </div>
-                ))}
-              </div>
             </div>
-
-            {/* Scrollable number row */}
-            <div className="overflow-x-auto scrollbar-none">
-              <div className="flex gap-1 pb-1">
-                {(session.mode === 'mock'
-                  ? session.answers.map((a, idx) => ({ ...a, idx })).filter(a => a.question?.subject === subject)
-                  : session.answers.map((a, idx) => ({ ...a, idx }))
-                ).map((ans, pos) => {
-                  const isActive   = ans.idx === currentIndex
-                  const isAnswered = ans.userAnswer !== null
-                  const isFlagged  = ans.isFlagged
-                  return (
-                    <motion.button
-                      key={ans.idx}
-                      whileTap={{ scale: 0.85 }}
-                      onClick={() => goToQuestion(ans.idx)}
-                      className={`relative shrink-0 w-9 h-9 rounded-xl text-[11px] font-bold transition-all duration-100
-                        ${isActive
-                          ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/40 scale-105'
-                          : isAnswered && isFlagged
-                            ? 'bg-amber-500/25 border border-amber-500/50 text-amber-400'
-                            : isAnswered
-                              ? 'bg-emerald-500/20 border border-emerald-500/30 text-emerald-400'
-                              : isFlagged
-                                ? 'bg-amber-500/10 border border-amber-500/30 text-amber-400'
-                                : 'bg-zinc-800 border border-zinc-700 text-zinc-400'
-                          }`}
-                    >
-                      {pos + 1}
-                      {isFlagged && (
-                        <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-amber-400" />
-                      )}
-                    </motion.button>
-                  )
-                })}
-              </div>
+            <div className="flex items-center gap-3">
+              {unanswered > 0 && (
+                <span className="text-zinc-600 text-[11px]">{unanswered} unanswered</span>
+              )}
+              {totalFlagged > 0 && (
+                <span className="text-amber-500 text-[11px]">{totalFlagged} flagged</span>
+              )}
+              <span className="text-zinc-600 text-[10px]">Browse ↑</span>
             </div>
-          </div>
+          </button>
 
-          {/* ── Nav + Tools row ────────────────────────── */}
+          {/* Nav row */}
           <div className="grid grid-cols-5 gap-1.5">
-
-            {/* Previous */}
             <motion.button
               whileTap={{ scale: 0.95 }}
               onClick={goPrev}
               disabled={currentIndex === 0}
-              className="col-span-1 h-11 rounded-2xl border border-zinc-800 bg-zinc-900 text-zinc-400 flex items-center justify-center disabled:opacity-25 hover:border-zinc-700 active:bg-zinc-800 transition-all"
+              className="col-span-1 h-12 rounded-2xl border border-zinc-800 bg-zinc-900 text-zinc-400 flex items-center justify-center disabled:opacity-25 hover:border-zinc-700 active:bg-zinc-800 transition-all"
             >
               <ChevronLeft size={20} />
             </motion.button>
 
-            {/* Flag */}
             <motion.button
               whileTap={{ scale: 0.95 }}
               onClick={handleFlag}
-              className={`col-span-1 h-11 rounded-2xl border flex flex-col items-center justify-center gap-0.5 transition-all
+              className={`col-span-1 h-12 rounded-2xl border flex flex-col items-center justify-center gap-0.5 transition-all
                 ${isFlagged
                   ? 'bg-amber-500/15 border-amber-500/40 text-amber-400'
                   : 'bg-zinc-900 border-zinc-800 text-zinc-500'
@@ -398,21 +369,19 @@ const ExamPage = () => {
               <span className="text-[9px] font-medium">{isFlagged ? 'Flagged' : 'Flag'}</span>
             </motion.button>
 
-            {/* Submit — center, most prominent */}
             <motion.button
               whileTap={{ scale: 0.95 }}
               onClick={() => setShowSubmit(true)}
-              className="col-span-1 h-11 rounded-2xl bg-red-500/10 border border-red-500/30 text-red-400 flex flex-col items-center justify-center gap-0.5 transition-all"
+              className="col-span-1 h-12 rounded-2xl bg-red-500/10 border border-red-500/30 text-red-400 flex flex-col items-center justify-center gap-0.5 transition-all"
             >
               <Send size={14} />
               <span className="text-[9px] font-medium">Submit</span>
             </motion.button>
 
-            {/* Calculator */}
             <motion.button
               whileTap={{ scale: 0.95 }}
               onClick={() => setShowCalc(!showCalc)}
-              className={`col-span-1 h-11 rounded-2xl border flex flex-col items-center justify-center gap-0.5 transition-all
+              className={`col-span-1 h-12 rounded-2xl border flex flex-col items-center justify-center gap-0.5 transition-all
                 ${showCalc
                   ? 'bg-blue-600/15 border-blue-500/40 text-blue-400'
                   : 'bg-zinc-900 border-zinc-800 text-zinc-500'
@@ -422,18 +391,139 @@ const ExamPage = () => {
               <span className="text-[9px] font-medium">Calc</span>
             </motion.button>
 
-            {/* Next */}
             <motion.button
               whileTap={{ scale: 0.95 }}
               onClick={goNext}
               disabled={currentIndex === totalQuestions - 1}
-              className="col-span-1 h-11 rounded-2xl bg-blue-600 hover:bg-blue-500 text-white flex items-center justify-center disabled:opacity-25 shadow-lg shadow-blue-500/20 transition-all"
+              className="col-span-1 h-12 rounded-2xl bg-blue-600 hover:bg-blue-500 text-white flex items-center justify-center disabled:opacity-25 shadow-lg shadow-blue-500/20 transition-all"
             >
               <ChevronRight size={20} />
             </motion.button>
           </div>
         </div>
       </div>
+
+      {/* ── Question panel (slide-up) ─────────────────── */}
+      <AnimatePresence>
+        {showPanel && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowPanel(false)}
+              className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ y: '100%' }}
+              animate={{ y: 0 }}
+              exit={{ y: '100%' }}
+              transition={{ type: 'spring', damping: 28, stiffness: 300 }}
+              className="fixed bottom-0 left-0 right-0 z-50 bg-[#0f0f11] border-t border-zinc-800 rounded-t-3xl"
+              style={{ maxHeight: '70vh' }}
+            >
+              {/* Handle */}
+              <div className="flex justify-center pt-3 pb-1">
+                <div className="w-10 h-1 rounded-full bg-zinc-700" />
+              </div>
+
+              <div className="px-4 pb-4 flex flex-col" style={{ maxHeight: 'calc(70vh - 32px)' }}>
+                {/* Header */}
+                <div className="flex items-center justify-between mb-3">
+                  <div>
+                    <h3 className="text-white text-[15px] font-bold">Question Browser</h3>
+                    <p className="text-zinc-600 text-[11px]">{totalAnswered}/{totalQuestions} answered · {totalFlagged} flagged</p>
+                  </div>
+                  <button
+                    onClick={() => setShowPanel(false)}
+                    className="w-8 h-8 rounded-xl bg-zinc-800 flex items-center justify-center text-zinc-400"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+
+                {/* Subject tabs (mock only) */}
+                {session.mode === 'mock' && (
+                  <div className="flex gap-2 mb-3 overflow-x-auto scrollbar-none">
+                    {session.subjects.map(subj => {
+                      const sAnswered = session.answers.filter(a => a.question?.subject === subj && a.userAnswer).length
+                      const sTotal    = session.answers.filter(a => a.question?.subject === subj).length
+                      const isActive  = activePanelSubj === subj
+                      return (
+                        <button
+                          key={subj}
+                          onClick={() => setPanelSubject(subj)}
+                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-semibold shrink-0 transition-all border
+                            ${isActive
+                              ? 'bg-blue-600 border-blue-600 text-white'
+                              : 'bg-zinc-900 border-zinc-800 text-zinc-400'
+                            }`}
+                        >
+                          <span className="capitalize">
+                            {subj === 'use of english' ? 'Use of English' : subj}
+                          </span>
+                          <span className={`text-[9px] px-1 py-0.5 rounded font-bold
+                            ${isActive ? 'bg-white/20 text-white' : 'bg-zinc-800 text-zinc-500'}`}>
+                            {sAnswered}/{sTotal}
+                          </span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                )}
+
+                {/* Legend */}
+                <div className="flex items-center gap-4 mb-3">
+                  {[
+                    { color: 'bg-emerald-500/20 border border-emerald-500/30', label: 'Answered' },
+                    { color: 'bg-zinc-800 border border-zinc-700',             label: 'Unanswered' },
+                    { color: 'bg-amber-500/20 border border-amber-500/40',     label: 'Flagged' },
+                  ].map(({ color, label }) => (
+                    <div key={label} className="flex items-center gap-1.5">
+                      <div className={`w-4 h-4 rounded-lg ${color}`} />
+                      <span className="text-zinc-600 text-[10px]">{label}</span>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Grid */}
+                <div className="overflow-y-auto flex-1">
+                  <div className="grid grid-cols-7 gap-1.5 pb-2">
+                    {panelAnswers.map((ans, pos) => {
+                      const isActive    = ans.idx === currentIndex
+                      const isAnswered  = ans.userAnswer !== null
+                      const flagged     = ans.isFlagged
+                      return (
+                        <motion.button
+                          key={ans.idx}
+                          whileTap={{ scale: 0.85 }}
+                          onClick={() => { goToQuestion(ans.idx); setShowPanel(false) }}
+                          className={`relative h-10 rounded-xl text-[12px] font-bold transition-all duration-100
+                            ${isActive
+                              ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/40 scale-105'
+                              : isAnswered && flagged
+                                ? 'bg-amber-500/25 border border-amber-500/50 text-amber-400'
+                                : isAnswered
+                                  ? 'bg-emerald-500/20 border border-emerald-500/30 text-emerald-400'
+                                  : flagged
+                                    ? 'bg-amber-500/10 border border-amber-500/30 text-amber-400'
+                                    : 'bg-zinc-800 border border-zinc-700 text-zinc-400'
+                              }`}
+                        >
+                          {pos + 1}
+                          {flagged && (
+                            <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-amber-400" />
+                          )}
+                        </motion.button>
+                      )
+                    })}
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
 
       {/* ── Calculator float ──────────────────────────── */}
       <AnimatePresence>
@@ -468,15 +558,15 @@ const ExamPage = () => {
                 <p className="text-zinc-500 text-[13px] text-center mb-5">
                   You've answered <span className="text-white font-semibold">{totalAnswered}</span> of{' '}
                   <span className="text-white font-semibold">{totalQuestions}</span> questions.
-                  {totalQuestions - totalAnswered > 0 && (
-                    <span className="text-amber-400"> {totalQuestions - totalAnswered} unanswered.</span>
+                  {unanswered > 0 && (
+                    <span className="text-amber-400"> {unanswered} unanswered.</span>
                   )}
                 </p>
                 <div className="grid grid-cols-3 gap-2 mb-5">
                   {[
-                    { label: 'Answered', value: totalAnswered,                  color: 'text-emerald-400' },
-                    { label: 'Skipped',  value: totalQuestions - totalAnswered, color: 'text-zinc-400'    },
-                    { label: 'Flagged',  value: totalFlagged,                   color: 'text-amber-400'   },
+                    { label: 'Answered', value: totalAnswered, color: 'text-emerald-400' },
+                    { label: 'Skipped',  value: unanswered,    color: 'text-zinc-400'    },
+                    { label: 'Flagged',  value: totalFlagged,  color: 'text-amber-400'   },
                   ].map(({ label, value, color }) => (
                     <div key={label} className="bg-zinc-800 rounded-2xl p-3 text-center">
                       <p className={`text-[20px] font-bold ${color}`}>{value}</p>
