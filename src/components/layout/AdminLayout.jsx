@@ -37,7 +37,7 @@ const AdminLayout = () => {
             <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-violet-500 to-violet-700 flex items-center justify-center shadow-lg shadow-violet-500/20">
               <GraduationCap size={16} className="text-white" />
             </div>
-            <span className="font-bold text-white text-[14px]">JAMB CBT</span>
+            <span className="font-bold text-white text-[14px]">Nursing CBT</span>
             <span className="hidden sm:flex items-center gap-1 px-2 py-0.5 rounded-full bg-violet-500/10 border border-violet-500/20 text-violet-400 text-[10px] font-medium">
               <Shield size={9} />
               Admin

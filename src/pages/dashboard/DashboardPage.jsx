@@ -115,7 +115,7 @@ const DashboardPage = () => {
     index:      i + 1
   }))
 
-  const bestGrade = getGrade(0, stats.bestScore / 4)
+  const bestGrade = getGrade(stats.bestScore)
 
   return (
     <div className="max-w-2xl mx-auto pb-24 md:pb-8">
@@ -153,7 +153,7 @@ const DashboardPage = () => {
         <StatCard
           icon={Trophy}
           label="Best Score"
-          value={`${(stats.bestScore / 4).toFixed(0)}%`}
+          value={`${(stats.bestScore ?? 0).toFixed(0)}%`}
           sub={`Grade ${bestGrade.grade}`}
           color="bg-amber-600"
           delay={0.15}
@@ -340,7 +340,7 @@ const DashboardPage = () => {
 
           <div className="space-y-2">
             {results.map((session, i) => {
-              const grade = getGrade(session.jambTotal, session.totalPercentage)
+              const grade = getGrade(session.totalPercentage)
               return (
                 <motion.div
                   key={session._id}
@@ -413,13 +413,13 @@ const DashboardPage = () => {
           <ResponsiveContainer width="100%" height={120}>
             <LineChart data={analytics.scoreTrend}>
               <XAxis dataKey="date" hide />
-              <YAxis domain={[0, 400]} hide />
+              <YAxis domain={[0, 100]} hide />
               <Tooltip
-                formatter={(v) => [`${v} pts`]}
+                formatter={(v) => [`${v}%`]}
                 contentStyle={{ background: '#18181b', border: '1px solid #27272a', borderRadius: 12 }}
                 labelStyle={{ display: 'none' }}
               />
-              <Line type="monotone" dataKey="jambTotal" stroke="#3b82f6" strokeWidth={2} dot={false} />
+              <Line type="monotone" dataKey="percentage" stroke="#3b82f6" strokeWidth={2} dot={false} />
             </LineChart>
           </ResponsiveContainer>
         </motion.div>
@@ -455,8 +455,8 @@ const DashboardPage = () => {
       {/* Predicted score */}
       {analytics?.predictedScore && (
         <motion.div className="bg-gradient-to-br from-blue-600/10 to-violet-600/10 border border-blue-500/20 rounded-3xl p-5 mb-4">
-          <p className="text-zinc-400 text-[12px] uppercase tracking-widest mb-1 font-semibold">Predicted JAMB Score</p>
-          <p className="text-white text-[42px] font-bold leading-none">{analytics.predictedScore}<span className="text-zinc-500 text-[18px] font-normal">/400</span></p>
+          <p className="text-zinc-400 text-[12px] uppercase tracking-widest mb-1 font-semibold">Predicted Score</p>
+          <p className="text-white text-[42px] font-bold leading-none">{analytics.predictedScore}<span className="text-zinc-500 text-[18px] font-normal">%</span></p>
           <p className="text-zinc-500 text-[12px] mt-1">Based on your last 5 practice exams</p>
         </motion.div>
       )}

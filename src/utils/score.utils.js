@@ -1,5 +1,5 @@
-export const getGrade = (jambTotal, totalPercentage) => {
-  const score = totalPercentage !== undefined ? totalPercentage : (jambTotal / 4)
+export const getGrade = (totalPercentage = 0) => {
+  const score = totalPercentage
 
   if (score >= 80) return { grade: 'A', label: 'Excellent',     color: 'text-emerald-400', bg: 'bg-emerald-50' }
   if (score >= 70) return { grade: 'B', label: 'Very Good',     color: 'text-blue-400',    bg: 'bg-blue-50'    }
@@ -34,16 +34,16 @@ export const calcPercentage = (score, total) => {
   return parseFloat(((score / total) * 100).toFixed(1))
 }
 
-// get total label based on mode
-export const getJambLabel = (session) => {
-  if (!session) return '0 / 400'
-  if (session.mode === 'mock') {
-    return `${session.jambTotal?.toFixed(0)} / 400`
-  }
-  // single subject — score out of 100
-  const subjectScore = session.subjectScores?.[0]
-  if (subjectScore) {
-    return `${subjectScore.jambScore?.toFixed(0)} / 100`
-  }
-  return `${session.totalPercentage?.toFixed(0)} / 100`
+// score summary label — raw correct out of total
+export const getScoreLabel = (session) => {
+  if (!session) return '0 / 0'
+  return `${session.totalScore ?? 0} / ${session.totalQuestions ?? 0}`
+}
+
+// did the student pass? falls back to a 50% pass mark
+export const isPass = (session) => {
+  if (!session) return false
+  if (typeof session.passed === 'boolean') return session.passed
+  const mark = session.passMark ?? 50
+  return (session.totalPercentage ?? 0) >= mark
 }

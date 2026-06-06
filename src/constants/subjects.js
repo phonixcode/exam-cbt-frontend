@@ -1,63 +1,33 @@
-import {
-  BookOpen,
-  Calculator,
-  Atom,
-  FlaskConical,
-  Dna,
-  TrendingUp,
-  Landmark,
-  BookMarked,
-  Shuffle,
-  Calendar,
-  BookCopy,
-  Target,
-} from 'lucide-react'
+import { BookCopy, Layers, Clock, PencilLine } from 'lucide-react'
 
-export const SUBJECTS = [
-  { value: 'use of english',      label: 'Use of English',    icon: BookOpen      },
-  { value: 'mathematics',         label: 'Mathematics',       icon: Calculator    },
-  { value: 'physics',             label: 'Physics',           icon: Atom          },
-  { value: 'chemistry',           label: 'Chemistry',         icon: FlaskConical  },
-  { value: 'biology',             label: 'Biology',           icon: Dna           },
-  { value: 'economics',           label: 'Economics',         icon: TrendingUp    },
-  { value: 'government',          label: 'Government',        icon: Landmark      },
-  { value: 'literature',          label: 'Literature',        icon: BookMarked    },
-]
-
-export const YEARS = Array.from(
-  { length: new Date().getFullYear() - 2000 + 1 },
-  (_, i) => new Date().getFullYear() - i
-)
-
+// Two ways to practice. "single" = one topic, "mock" = several topics together.
 export const EXAM_MODES = [
   {
     value:       'single',
-    label:       'Single Subject',
-    description: 'Practice one subject at a time',
+    label:       'Single Topic',
+    description: 'Practice one topic at a time',
     icon:        BookCopy,
   },
   {
     value:       'mock',
-    label:       'Full Mock Exam',
-    description: '4 subjects · 180 questions · JAMB format',
-    icon:        Target,
+    label:       'Mock Exam',
+    description: 'Mix several topics together',
+    icon:        Layers,
   },
 ]
 
-export const SELECTION_TYPES = [
-  {
-    value:       'random',
-    label:       'Random Mix',
-    description: 'Questions from a year range',
-    icon:        Shuffle,
-  },
-  {
-    value:       'specific',
-    label:       'Specific Year',
-    description: 'All questions from one year',
-    icon:        Calendar,
-  },
+// How many questions to pull from each topic (null = every available question)
+export const QUESTION_COUNTS = [
+  { value: 10,   label: '10'  },
+  { value: 20,   label: '20'  },
+  { value: 40,   label: '40'  },
+  { value: null, label: 'All' },
 ]
 
-export const JAMB_MOCK_TIME    = 7200  // 2 hours — full mock (180 questions)
-export const JAMB_TIME_ALLOWED = 7200  // default fallback
+// Timed vs relaxed practice
+export const TIMING_MODES = [
+  { value: 'timed',    label: 'Timed',    description: 'Beat the clock',         icon: Clock      },
+  { value: 'practice', label: 'Practice', description: 'No timer, learn freely', icon: PencilLine },
+]
+
+export const DEFAULT_PASS_MARK = 50

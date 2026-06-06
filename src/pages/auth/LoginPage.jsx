@@ -48,8 +48,8 @@ const LoginPage = () => {
           <GraduationCap size={20} className="text-white" />
         </div>
         <div>
-          <p className="text-white font-semibold text-[15px] leading-none">JAMB CBT</p>
-          <p className="text-zinc-500 text-[11px] mt-0.5">Exam Simulator</p>
+          <p className="text-white font-semibold text-[15px] leading-none">Nursing CBT</p>
+          <p className="text-zinc-500 text-[11px] mt-0.5">Board Exam Prep</p>
         </div>
       </div>
 
@@ -58,7 +58,7 @@ const LoginPage = () => {
         <h1 className="text-white text-[32px] font-bold leading-tight tracking-tight">
           Ready to ace<br />
           <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-violet-400">
-            your JAMB?
+            your board exam?
           </span>
         </h1>
         <p className="text-zinc-500 text-[14px] mt-2">

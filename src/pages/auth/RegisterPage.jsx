@@ -1,21 +1,23 @@
-import { useState }    from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   GraduationCap, ArrowRight, ArrowLeft,
   User, Phone, Lock, Eye, EyeOff,
-  Check, Sparkles
+  Check, Sparkles, BookOpen
 } from 'lucide-react'
-import useAuth      from '@/hooks/useAuth'
-import { SUBJECTS } from '@/constants/subjects'
+import useAuth          from '@/hooks/useAuth'
+import questionService  from '@/services/question.service'
 import { ROUTES }   from '@/constants/routes'
 import { Link }     from 'react-router-dom'
 
+const titleCase = (s) => s.replace(/\b\w/g, c => c.toUpperCase())
+
 const STEPS = [
-  { id: 1, question: "First, what's your name?",       hint: "What your friends call you 😊"               },
-  { id: 2, question: "Your phone number?",             hint: "You'll use this to sign in"                  },
-  { id: 3, question: "Create a 4-digit PIN",           hint: "Something easy for you to remember"          },
-  { id: 4, question: "Which subjects are you taking?", hint: "Pick all that apply — you can change later"  },
+  { id: 1, question: "First, what's your name?",      hint: "What your friends call you 😊"               },
+  { id: 2, question: "Your phone number?",            hint: "You'll use this to sign in"                  },
+  { id: 3, question: "Create a 4-digit PIN",          hint: "Something easy for you to remember"          },
+  { id: 4, question: "Which topics interest you?",    hint: "Pick all that apply — you can change later"  },
 ]
 
 const slideVariants = {
@@ -36,7 +38,14 @@ const RegisterPage = () => {
   const [confirmPin, setConfirmPin]             = useState('')
   const [showPin, setShowPin]                   = useState(false)
   const [selectedSubjects, setSelectedSubjects] = useState([])
+  const [topics, setTopics]                     = useState([])
   const [errors, setErrors]                     = useState({})
+
+  useEffect(() => {
+    questionService.getFilters()
+      .then(res => setTopics(res.data?.subjects || []))
+      .catch(() => {})
+  }, [])
 
   const goNext = () => {
     const errs = {}
@@ -92,7 +101,7 @@ const RegisterPage = () => {
           <GraduationCap size={20} className="text-white" />
         </div>
         <div>
-          <p className="text-white font-semibold text-[15px] leading-none">JAMB CBT</p>
+          <p className="text-white font-semibold text-[15px] leading-none">Nursing CBT</p>
           <p className="text-zinc-500 text-[11px] mt-0.5">Let's get you set up</p>
         </div>
       </div>
@@ -270,42 +279,49 @@ const RegisterPage = () => {
               </div>
             )}
 
-            {/* Step 3 — Subjects */}
+            {/* Step 3 — Topics */}
             {step === 3 && (
               <div>
-                <div className="grid grid-cols-2 gap-2">
-                  {SUBJECTS.map(({ value, label, icon: Icon }) => {
-                    const selected = selectedSubjects.includes(value)
-                    return (
-                      <motion.button
-                        key={value}
-                        type="button"
-                        whileTap={{ scale: 0.97 }}
-                        onClick={() => toggleSubject(value)}
-                        className={`flex items-center gap-2.5 p-3 rounded-2xl border text-left transition-all duration-150
-                          ${selected
-                            ? 'bg-blue-600/10 border-blue-500/50 text-blue-400'
-                            : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:border-zinc-700'
-                          }`}
-                      >
-                        <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0
-                          ${selected ? 'bg-blue-600/20' : 'bg-zinc-800'}`}
+                {topics.length === 0 ? (
+                  <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 text-center">
+                    <BookOpen size={20} className="text-zinc-600 mx-auto mb-2" />
+                    <p className="text-zinc-500 text-[13px]">No topics yet — you can pick them later once they're added.</p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 gap-2">
+                    {topics.map((topic) => {
+                      const selected = selectedSubjects.includes(topic)
+                      return (
+                        <motion.button
+                          key={topic}
+                          type="button"
+                          whileTap={{ scale: 0.97 }}
+                          onClick={() => toggleSubject(topic)}
+                          className={`flex items-center gap-2.5 p-3 rounded-2xl border text-left transition-all duration-150
+                            ${selected
+                              ? 'bg-blue-600/10 border-blue-500/50 text-blue-400'
+                              : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:border-zinc-700'
+                            }`}
                         >
-                          <Icon size={15} className={selected ? 'text-blue-400' : 'text-zinc-500'} />
-                        </div>
-                        <span className="text-[13px] font-medium leading-tight">{label}</span>
-                        {selected && (
-                          <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} className="ml-auto">
-                            <Check size={13} className="text-blue-400" />
-                          </motion.div>
-                        )}
-                      </motion.button>
-                    )
-                  })}
-                </div>
+                          <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0
+                            ${selected ? 'bg-blue-600/20' : 'bg-zinc-800'}`}
+                          >
+                            <BookOpen size={15} className={selected ? 'text-blue-400' : 'text-zinc-500'} />
+                          </div>
+                          <span className="text-[13px] font-medium leading-tight capitalize">{titleCase(topic)}</span>
+                          {selected && (
+                            <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} className="ml-auto">
+                              <Check size={13} className="text-blue-400" />
+                            </motion.div>
+                          )}
+                        </motion.button>
+                      )
+                    })}
+                  </div>
+                )}
                 {selectedSubjects.length > 0 && (
                   <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-zinc-600 text-[12px] mt-3 text-center">
-                    {selectedSubjects.length} subject{selectedSubjects.length > 1 ? 's' : ''} selected
+                    {selectedSubjects.length} topic{selectedSubjects.length > 1 ? 's' : ''} selected
                   </motion.p>
                 )}
               </div>

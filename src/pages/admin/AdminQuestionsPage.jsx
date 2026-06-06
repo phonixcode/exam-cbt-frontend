@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence }          from 'framer-motion'
 import {
-  Search, Filter, Edit3, Trash2,
+  Search, Edit3, Trash2,
   ChevronLeft, ChevronRight, X,
   Check, BookOpen, AlertTriangle,
   Save, Eye, EyeOff, ChevronDown,
@@ -10,14 +10,7 @@ import {
 import { Link }              from 'react-router-dom'
 import toast                 from 'react-hot-toast'
 import questionService       from '@/services/question.service'
-import adminService          from '@/services/admin.service'
 import { ROUTES }            from '@/constants/routes'
-import { SUBJECTS }          from '@/constants/subjects'
-
-const YEARS = Array.from(
-  { length: new Date().getFullYear() - 2000 + 1 },
-  (_, i) => new Date().getFullYear() - i
-)
 
 // ── Edit Modal ────────────────────────────────────────────
 const EditModal = ({ question, onClose, onSave }) => {
@@ -72,22 +65,13 @@ const EditModal = ({ question, onClose, onSave }) => {
           </div>
 
           <div className="p-5 space-y-4">
-            {/* Subject + Year + Number */}
-            <div className="grid grid-cols-3 gap-2">
+            {/* Topic + Number */}
+            <div className="grid grid-cols-2 gap-2">
               <div>
-                <label className="text-zinc-500 text-[11px] mb-1.5 block font-medium">Subject</label>
+                <label className="text-zinc-500 text-[11px] mb-1.5 block font-medium">Topic</label>
                 <input
                   value={form.subject}
                   onChange={e => setForm(p => ({ ...p, subject: e.target.value.toLowerCase() }))}
-                  className="w-full h-10 bg-zinc-800 border border-zinc-700 rounded-xl px-3 text-white text-[13px] outline-none focus:border-violet-500/50"
-                />
-              </div>
-              <div>
-                <label className="text-zinc-500 text-[11px] mb-1.5 block font-medium">Year</label>
-                <input
-                  type="number"
-                  value={form.year}
-                  onChange={e => setForm(p => ({ ...p, year: parseInt(e.target.value) }))}
                   className="w-full h-10 bg-zinc-800 border border-zinc-700 rounded-xl px-3 text-white text-[13px] outline-none focus:border-violet-500/50"
                 />
               </div>
@@ -268,7 +252,6 @@ const QuestionRow = ({ question, index, onEdit, onDelete, onToggleActive }) => {
 
         {/* Number */}
         <div className="flex flex-col items-center gap-1 shrink-0 mt-0.5">
-          <span className="text-zinc-600 text-[10px] font-mono">{question.year}</span>
           <span className="text-zinc-500 text-[11px] font-mono">#{question.questionNumber}</span>
         </div>
 
@@ -423,14 +406,14 @@ const AdminQuestionsPage = () => {
   const [loading, setLoading]       = useState(true)
   const [meta, setMeta]             = useState(null)
   const [editTarget, setEditTarget] = useState(null)
-  const [filters, setFilters]       = useState({ subject: '', year: '', type: '', search: '', page: 1 })
+  const [filters, setFilters]       = useState({ subject: '', type: '', search: '', page: 1 })
+  const [topics, setTopics]         = useState([])
 
   const fetchQuestions = useCallback(async (f = filters) => {
     setLoading(true)
     try {
       const params = { limit: 15, page: f.page }
       if (f.subject) params.subject = f.subject
-      if (f.year)    params.year    = f.year
       if (f.type)    params.type    = f.type
       if (f.search)  params.search  = f.search
 
@@ -445,6 +428,12 @@ const AdminQuestionsPage = () => {
   }, [filters])
 
   useEffect(() => { fetchQuestions() }, [])
+
+  useEffect(() => {
+    questionService.getFilters()
+      .then(res => setTopics(res.data?.subjects || []))
+      .catch(() => {})
+  }, [])
 
   const updateFilter = (key, value) => {
     const updated = { ...filters, [key]: value, page: 1 }
@@ -560,26 +549,15 @@ const AdminQuestionsPage = () => {
         </div>
 
         {/* Filter row */}
-        <div className="grid grid-cols-3 gap-2">
+        <div className="grid grid-cols-2 gap-2">
           <select
             value={filters.subject}
             onChange={e => updateFilter('subject', e.target.value)}
-            className="h-10 bg-zinc-900 border border-zinc-800 rounded-xl px-3 text-[13px] text-white outline-none appearance-none"
+            className="h-10 bg-zinc-900 border border-zinc-800 rounded-xl px-3 text-[13px] text-white outline-none appearance-none capitalize"
           >
-            <option value="">All Subjects</option>
-            {SUBJECTS.map(s => (
-              <option key={s.value} value={s.value}>{s.label}</option>
-            ))}
-          </select>
-
-          <select
-            value={filters.year}
-            onChange={e => updateFilter('year', e.target.value)}
-            className="h-10 bg-zinc-900 border border-zinc-800 rounded-xl px-3 text-[13px] text-white outline-none appearance-none"
-          >
-            <option value="">All Years</option>
-            {YEARS.map(y => (
-              <option key={y} value={y}>{y}</option>
+            <option value="">All Topics</option>
+            {topics.map(t => (
+              <option key={t} value={t} className="capitalize">{t}</option>
             ))}
           </select>
 
@@ -604,10 +582,10 @@ const AdminQuestionsPage = () => {
         <div className="text-center py-16">
           <BookOpen size={28} className="text-zinc-700 mx-auto mb-3" />
           <p className="text-zinc-500 text-[14px]">No questions found</p>
-          {(filters.subject || filters.year || filters.search) && (
+          {(filters.subject || filters.type || filters.search) && (
             <button
               onClick={() => {
-                const reset = { subject: '', year: '', type: '', search: '', page: 1 }
+                const reset = { subject: '', type: '', search: '', page: 1 }
                 setFilters(reset)
                 fetchQuestions(reset)
               }}

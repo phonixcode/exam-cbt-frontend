@@ -176,10 +176,7 @@ const AdminDashboardPage = () => {
                         <span className="text-zinc-300 text-[13px] capitalize font-medium">{s._id}</span>
                         <div className="flex items-center gap-2">
                           <span className="text-zinc-500 text-[12px]">
-                            {s.years?.length} year{s.years?.length !== 1 ? 's' : ''}
-                          </span>
-                          <span className="text-white text-[13px] font-semibold">
-                            {s.totalCount}
+                            {s.totalCount} question{s.totalCount !== 1 ? 's' : ''}
                           </span>
                         </div>
                       </div>
@@ -191,25 +188,6 @@ const AdminDashboardPage = () => {
                           transition={{ duration: 0.8, delay: 0.4 + i * 0.05 }}
                         />
                       </div>
-
-                      {/* Year pills */}
-                      {s.years?.length > 0 && (
-                        <div className="flex flex-wrap gap-1 mt-2">
-                          {s.years.slice(0, 6).map(y => (
-                            <span
-                              key={y.year}
-                              className="text-[10px] px-1.5 py-0.5 rounded-md bg-zinc-800 text-zinc-600"
-                            >
-                              {y.year} ({y.count})
-                            </span>
-                          ))}
-                          {s.years.length > 6 && (
-                            <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-zinc-800 text-zinc-600">
-                              +{s.years.length - 6} more
-                            </span>
-                          )}
-                        </div>
-                      )}
                     </motion.div>
                   )
                 })}

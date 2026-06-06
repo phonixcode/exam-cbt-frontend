@@ -3,73 +3,57 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { useNavigate }             from 'react-router-dom'
 import {
   BookOpen, ArrowRight, GraduationCap,
-  Zap, Clock, BarChart3, AlertTriangle,
+  Target, ListChecks, TrendingUp, AlertTriangle,
   PlayCircle, X
 } from 'lucide-react'
 import useAuth             from '@/hooks/useAuth'
 import useExam             from '@/hooks/useExam'
 import useExamStore        from '@/store/exam.store'
 import examService         from '@/services/exam.service'
-import { SUBJECTS, YEARS, EXAM_MODES, SELECTION_TYPES } from '@/constants/subjects'
+import questionService     from '@/services/question.service'
+import { EXAM_MODES, QUESTION_COUNTS, TIMING_MODES, DEFAULT_PASS_MARK } from '@/constants/subjects'
 import { buildRoute, ROUTES } from '@/constants/routes'
-import questionService from '@/services/question.service'
-import { COURSES } from '@/constants/courses'
 
 const QUICK_STATS = [
-  { icon: Zap,       label: 'Avg session',  value: '40 mins'  },
-  { icon: Clock,     label: 'Time allowed', value: '2 hours'  },
-  { icon: BarChart3, label: 'Questions',    value: '40–60'     },
+  { icon: ListChecks, label: 'Choose',  value: 'Your topics' },
+  { icon: Target,     label: 'Pass at', value: `${DEFAULT_PASS_MARK}%`  },
+  { icon: TrendingUp, label: 'Track',   value: 'Progress'    },
 ]
+
+const titleCase = (s) =>
+  s.replace(/\b\w/g, c => c.toUpperCase())
 
 const SectionLabel = ({ children }) => (
   <p className="text-[11px] font-semibold text-zinc-500 uppercase tracking-widest mb-3">{children}</p>
 )
 
 const HomePage = () => {
-  const { user }                              = useAuth()
-  const { startExam, isStarting }             = useExam()
+  const { user }                  = useAuth()
+  const { startExam, isStarting } = useExam()
+  const navigate                  = useNavigate()
+  const { setSession }            = useExamStore()
 
-  const [mode, setMode]                       = useState('single')
-  const [selectionType, setSelectionType]     = useState('random')
-  const [selectedSubjects, setSelectedSubjects] = useState([])
-  const [yearFrom, setYearFrom]               = useState(2015)
-  const [yearTo, setYearTo]                   = useState(2024)
-  const [specificYear, setSpecificYear]       = useState(2023)
-  const [error, setError]                     = useState('')
-  const navigate                              = useNavigate()
-  const { setSession }                        = useExamStore()
-  const [ongoingSession, setOngoingSession]   = useState(null)
+  const [mode, setMode]                   = useState('single')
+  const [topics, setTopics]               = useState([])      // available topics from backend
+  const [selectedTopics, setSelected]     = useState([])
+  const [questionCount, setQuestionCount] = useState(20)      // per topic; null = all
+  const [timing, setTiming]               = useState('timed')
+  const [error, setError]                 = useState('')
+
+  const [ongoingSession, setOngoingSession]     = useState(null)
   const [showOngoingModal, setShowOngoingModal] = useState(false)
-  const [availableSubjects, setAvailableSubjects] = useState(SUBJECTS)
-  const [course, setCourse]                   = useState('')
 
+  // load available topics
   useEffect(() => {
     questionService.getFilters()
-      .then(res => {
-        const backendSubjects = res.data?.subjects || []
-        // merge backend subjects with our known ones
-        const known = SUBJECTS.map(s => s.value)
-        const newOnes = backendSubjects
-          .filter(s => !known.includes(s))
-          .map(s => ({
-            value: s,
-            label: s.charAt(0).toUpperCase() + s.slice(1),
-            icon:  BookOpen
-          }))
-        if (newOnes.length > 0) {
-          setAvailableSubjects([...SUBJECTS, ...newOnes])
-        }
-      })
+      .then(res => setTopics(res.data?.subjects || []))
       .catch(() => {})
   }, [])
 
-  // check for ongoing session on mount
+  // check for an ongoing session on mount
   useEffect(() => {
     examService.getOngoingSession()
-      .then(res => {
-        setOngoingSession(res.data)
-        setShowOngoingModal(true)
-      })
+      .then(res => { setOngoingSession(res.data); setShowOngoingModal(true) })
       .catch(() => {})
   }, [])
 
@@ -88,53 +72,31 @@ const HomePage = () => {
     } catch { /* ignore */ }
   }
 
-  const toggleSubject = (val) => {
+  const toggleTopic = (val) => {
     if (mode === 'mock') {
-      setSelectedSubjects(p =>
-        p.includes(val) ? p.filter(s => s !== val)
-          : p.length < 4 ? [...p, val] : p
-      )
+      setSelected(p => p.includes(val) ? p.filter(s => s !== val) : [...p, val])
     } else {
-      setSelectedSubjects(p =>
-        p.includes(val) ? p.filter(s => s !== val) : [val]
-      )
+      setSelected(p => p.includes(val) ? [] : [val])
     }
   }
 
-  const handleStart = async () => {
+  const handleStart = () => {
     setError('')
 
-    if (selectedSubjects.length === 0) {
-      setError('Please select at least one subject')
+    if (selectedTopics.length === 0) {
+      setError('Please pick at least one topic')
       return
     }
-    if (mode === 'mock' && selectedSubjects.length !== 4) {
-      setError('Mock exam requires exactly 4 subjects')
+    if (mode === 'mock' && selectedTopics.length < 2) {
+      setError('A mock exam needs at least 2 topics')
       return
     }
-
-    // validate question count before starting
-    try {
-      const filters = await questionService.getFilters()
-      const available = filters.data
-
-      for (const subject of selectedSubjects) {
-        const hasQuestions = available.subjects?.includes(subject)
-
-        if (!hasQuestions) {
-          setError(`No questions available for ${subject}. Please ask admin to upload questions.`)
-          return
-        }
-      }
-    } catch { /* ignore */ }
 
     startExam({
       mode,
-      subjects:      selectedSubjects,
-      selectionType,
-      yearFrom:      selectionType === 'specific' ? specificYear : yearFrom,
-      yearTo:        selectionType === 'specific' ? specificYear : yearTo,
-      course
+      subjects:          selectedTopics,
+      questionsPerTopic: questionCount,
+      examMode:          timing,
     })
   }
 
@@ -146,25 +108,17 @@ const HomePage = () => {
     <div className="max-w-2xl mx-auto pb-24 md:pb-8">
 
       {/* ── Header ─────────────────────────────────────── */}
-      <motion.div
-        initial={{ opacity: 0, y: -10 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="mb-8"
-      >
+      <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="mb-8">
         <p className="text-sm text-zinc-500">{greeting} 👋</p>
-        <h1 className="text-2xl font-bold text-white mt-0.5">
-          Hey, {firstName}!
-        </h1>
+        <h1 className="text-2xl font-bold text-white mt-0.5">Hey, {firstName}!</h1>
         <p className="text-gray-500 dark:text-zinc-500 text-sm mt-1">
-          What are we practicing today?
+          What would you like to revise today?
         </p>
       </motion.div>
 
       {/* ── Quick stats ────────────────────────────────── */}
       <motion.div
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.05 }}
+        initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}
         className="grid grid-cols-3 gap-3 mb-8"
       >
         {QUICK_STATS.map(({ icon: Icon, label, value }) => (
@@ -178,12 +132,10 @@ const HomePage = () => {
 
       {/* ── Exam mode ──────────────────────────────────── */}
       <motion.div
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.1 }}
+        initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}
         className="mb-6"
       >
-        <SectionLabel>Exam Mode</SectionLabel>
+        <SectionLabel>How do you want to practice?</SectionLabel>
         <div className="grid grid-cols-2 gap-3">
           {EXAM_MODES.map(({ value, label, description, icon: Icon }) => {
             const selected = mode === value
@@ -191,16 +143,14 @@ const HomePage = () => {
               <motion.button
                 key={value}
                 whileTap={{ scale: 0.97 }}
-                onClick={() => { setMode(value); setSelectedSubjects([]); setCourse('') }}
+                onClick={() => { setMode(value); setSelected([]) }}
                 className={`relative p-4 rounded-2xl border text-left transition-all duration-200
                   ${selected
                     ? 'bg-blue-600 border-blue-600 shadow-lg shadow-blue-500/20'
-                    : 'bg-zinc-900 border-zinc-800 hover:border-zinc-700'
-                  }`}
+                    : 'bg-zinc-900 border-zinc-800 hover:border-zinc-700'}`}
               >
                 <div className={`w-9 h-9 rounded-xl flex items-center justify-center mb-3
-                  ${selected ? 'bg-white/20' : 'bg-zinc-800'}`}
-                >
+                  ${selected ? 'bg-white/20' : 'bg-zinc-800'}`}>
                   <Icon size={18} className={selected ? 'text-white' : 'text-gray-500 dark:text-zinc-400'} />
                 </div>
                 <p className={`text-[14px] font-semibold leading-none mb-1 ${selected ? 'text-white' : 'text-gray-900 dark:text-white'}`}>
@@ -209,255 +159,123 @@ const HomePage = () => {
                 <p className={`text-[12px] leading-tight ${selected ? 'text-blue-100' : 'text-gray-400 dark:text-zinc-500'}`}>
                   {description}
                 </p>
-                {selected && (
-                  <motion.div
-                    layoutId="mode-check"
-                    className="absolute top-3 right-3 w-5 h-5 rounded-full bg-white/20 flex items-center justify-center"
-                  >
-                    <div className="w-2 h-2 rounded-full bg-white" />
-                  </motion.div>
-                )}
               </motion.button>
             )
           })}
         </div>
       </motion.div>
 
-      {/* ── Course / Department (mock mode only) ─────── */}
-      {mode === 'mock' && (
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.12 }}
-          className="mb-6"
-        >
-          <SectionLabel>Your Course / Department</SectionLabel>
-          <div className="grid grid-cols-2 gap-2 mb-4">
-            {COURSES.map(c => {
-              const selected = course === c.value
-              const Icon = c.icon
+      {/* ── Topic selection ────────────────────────────── */}
+      <motion.div
+        initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}
+        className="mb-6"
+      >
+        <div className="flex items-center justify-between mb-3">
+          <SectionLabel>{mode === 'mock' ? 'Pick your topics' : 'Pick a topic'}</SectionLabel>
+          {mode === 'mock' && selectedTopics.length > 0 && (
+            <span className="text-[11px] text-zinc-500">{selectedTopics.length} selected</span>
+          )}
+        </div>
+
+        {topics.length === 0 ? (
+          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 text-center">
+            <BookOpen size={20} className="text-zinc-600 mx-auto mb-2" />
+            <p className="text-zinc-500 text-[13px]">No topics yet. Ask your admin to upload questions.</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 gap-2">
+            {topics.map(topic => {
+              const selected = selectedTopics.includes(topic)
               return (
                 <motion.button
-                  key={c.value}
+                  key={topic}
                   whileTap={{ scale: 0.97 }}
-                  onClick={() => {
-                    setCourse(c.value)
-                    if (c.subjects.length > 0) setSelectedSubjects(c.subjects)
-                    else setSelectedSubjects([])
-                  }}
-                  className={`flex items-center gap-2.5 p-3 rounded-2xl border text-left transition-all
+                  onClick={() => toggleTopic(topic)}
+                  className={`flex items-center gap-2.5 p-3 rounded-2xl border text-left transition-all duration-150
                     ${selected
                       ? 'bg-blue-600/10 border-blue-500/40'
-                      : 'bg-zinc-900 border-zinc-800 hover:border-zinc-700'
-                    }`}
+                      : 'bg-zinc-900 border-zinc-800 hover:border-zinc-700'}`}
                 >
-                  <Icon size={16} className={`shrink-0 ${selected ? 'text-blue-400' : 'text-zinc-500'}`} />
-                  <span className={`text-[12px] font-medium leading-tight ${selected ? 'text-blue-400' : 'text-zinc-400'}`}>
-                    {c.label}
+                  <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0
+                    ${selected ? 'bg-blue-600/20' : 'bg-zinc-800'}`}>
+                    <BookOpen size={15} className={selected ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400 dark:text-zinc-500'} />
+                  </div>
+                  <span className={`text-[13px] font-medium flex-1 leading-tight capitalize
+                    ${selected ? 'text-blue-400' : 'text-zinc-300'}`}>
+                    {titleCase(topic)}
                   </span>
+                  {selected && (
+                    <motion.div
+                      initial={{ scale: 0 }} animate={{ scale: 1 }}
+                      className="w-5 h-5 rounded-full bg-blue-600/20 border border-blue-500/50 flex items-center justify-center shrink-0"
+                    >
+                      <div className="w-2 h-2 rounded-full bg-blue-400" />
+                    </motion.div>
+                  )}
                 </motion.button>
               )
             })}
           </div>
-
-          {selectedSubjects.length > 0 && course !== 'custom' && (
-            <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-3">
-              <p className="text-zinc-500 text-[11px] uppercase tracking-widest mb-2">Subjects for this exam</p>
-              <div className="flex flex-wrap gap-2">
-                {selectedSubjects.map(s => {
-                  const subj = availableSubjects.find(x => x.value === s)
-                  if (!subj) return null
-                  const SubjIcon = subj.icon
-                  return (
-                    <div key={s} className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-600/10 border border-blue-500/30">
-                      <SubjIcon size={12} className="text-blue-400" />
-                      <span className="text-blue-400 text-[12px] font-medium">{subj.label}</span>
-                    </div>
-                  )
-                })}
-              </div>
-              <p className="text-zinc-600 text-[11px] mt-2">
-                Use of English: 60 questions · Others: 40 questions each · Total:{' '}
-                {selectedSubjects.reduce((t, s) => t + (s === 'use of english' ? 60 : 40), 0)} questions
-              </p>
-            </div>
-          )}
-        </motion.div>
-      )}
-
-      {/* ── Subject selection ──────────────────────────── */}
-      {(mode !== 'mock' || !course || course === 'custom') && (
-      <motion.div
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.15 }}
-        className="mb-6"
-      >
-        <div className="flex items-center justify-between mb-3">
-          <SectionLabel>
-            {mode === 'mock' ? 'Pick 4 Subjects' : 'Pick a Subject'}
-          </SectionLabel>
-          {mode === 'mock' && (
-            <span className="text-[11px] text-zinc-500">
-              {selectedSubjects.length}/4
-            </span>
-          )}
-        </div>
-
-        <div className="grid grid-cols-2 gap-2">
-          {availableSubjects.map(({ value, label, icon: Icon }) => {
-            const selected  = selectedSubjects.includes(value)
-            const maxed     = mode === 'mock' && selectedSubjects.length >= 4 && !selected
-
-            return (
-              <motion.button
-                key={value}
-                whileTap={{ scale: 0.97 }}
-                onClick={() => !maxed && toggleSubject(value)}
-                className={`flex items-center gap-2.5 p-3 rounded-2xl border text-left transition-all duration-150
-                ${selected
-                    ? 'bg-blue-600/10 border-blue-500/40'
-                    : maxed
-                    ? 'bg-zinc-900 border-zinc-800 opacity-40 cursor-not-allowed'
-                    : 'bg-zinc-900 border-zinc-800 hover:border-zinc-700'
-                }`}
-              >
-                <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0
-                  ${selected ? 'bg-blue-600/20' : 'bg-zinc-800'}`}
-                >
-                  <Icon size={15} className={selected ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400 dark:text-zinc-500'} />
-                </div>
-                <span className={`text-[13px] font-medium flex-1 leading-tight
-                  ${selected ? 'text-blue-400' : 'text-zinc-300'}`}
-                >
-                  {label}
-                </span>
-                {selected && (
-                  <motion.div
-                    initial={{ scale: 0 }}
-                    animate={{ scale: 1 }}
-                    className="w-5 h-5 rounded-full bg-blue-600/20 border border-blue-500/50 flex items-center justify-center shrink-0"
-                    >
-                        <div className="w-2 h-2 rounded-full bg-blue-400" />
-                  </motion.div>
-                )}
-              </motion.button>
-            )
-          })}
-        </div>
+        )}
       </motion.div>
-      )}
 
-      {/* ── Year selection ─────────────────────────────── */}
+      {/* ── Number of questions ────────────────────────── */}
       <motion.div
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.2 }}
+        initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.18 }}
         className="mb-6"
       >
-        <SectionLabel>Question Source</SectionLabel>
-
-        {/* Selection type toggle */}
-        <div className="flex items-center gap-2 p-1 bg-zinc-900 rounded-2xl mb-4 border border-zinc-800">
-          {SELECTION_TYPES.map(({ value, label, icon: Icon }) => (
+        <SectionLabel>
+          {mode === 'mock' ? 'Questions per topic' : 'Number of questions'}
+        </SectionLabel>
+        <div className="flex items-center gap-2 p-1 bg-zinc-900 rounded-2xl border border-zinc-800">
+          {QUESTION_COUNTS.map(({ value, label }) => (
             <button
-              key={value}
-              onClick={() => setSelectionType(value)}
-              className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-xl text-[13px] font-medium transition-all duration-200
-                ${selectionType === value
-                    ? 'bg-zinc-800 text-white shadow-sm'
-                    : 'text-zinc-500 hover:text-zinc-300'
-                }`}
+              key={label}
+              onClick={() => setQuestionCount(value)}
+              className={`flex-1 py-2.5 rounded-xl text-[13px] font-medium transition-all duration-200
+                ${questionCount === value
+                  ? 'bg-zinc-800 text-white shadow-sm'
+                  : 'text-zinc-500 hover:text-zinc-300'}`}
             >
-              <Icon size={14} />
               {label}
             </button>
           ))}
         </div>
+      </motion.div>
 
-        <AnimatePresence mode="wait">
-          {selectionType === 'random' ? (
-            <motion.div
-              key="random"
-              initial={{ opacity: 0, y: 6 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -6 }}
-              className="bg-zinc-900 rounded-2xl border border-zinc-800 p-4"
-            >
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-[13px] text-zinc-400">Year range</span>
-                <span className="text-[13px] font-semibold text-white">
-                  {yearFrom} — {yearTo}
-                </span>
-              </div>
-
-              <div className="space-y-4">
+      {/* ── Timing ─────────────────────────────────────── */}
+      <motion.div
+        initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}
+        className="mb-6"
+      >
+        <SectionLabel>Timer</SectionLabel>
+        <div className="grid grid-cols-2 gap-3">
+          {TIMING_MODES.map(({ value, label, description, icon: Icon }) => {
+            const selected = timing === value
+            return (
+              <motion.button
+                key={value}
+                whileTap={{ scale: 0.97 }}
+                onClick={() => setTiming(value)}
+                className={`flex items-center gap-2.5 p-3 rounded-2xl border text-left transition-all
+                  ${selected ? 'bg-blue-600/10 border-blue-500/40' : 'bg-zinc-900 border-zinc-800 hover:border-zinc-700'}`}
+              >
+                <Icon size={16} className={`shrink-0 ${selected ? 'text-blue-400' : 'text-zinc-500'}`} />
                 <div>
-                  <div className="flex justify-between text-[11px] text-gray-400 dark:text-zinc-600 mb-1.5">
-                    <span>From</span><span>{yearFrom}</span>
-                  </div>
-                  <input
-                    type="range"
-                    min={2005} max={yearTo}
-                    value={yearFrom}
-                    onChange={e => setYearFrom(Number(e.target.value))}
-                    className="w-full accent-blue-600"
-                  />
+                  <p className={`text-[13px] font-semibold leading-none mb-0.5 ${selected ? 'text-blue-400' : 'text-zinc-300'}`}>{label}</p>
+                  <p className="text-[11px] text-zinc-500 leading-tight">{description}</p>
                 </div>
-                <div>
-                  <div className="flex justify-between text-[11px] text-gray-400 dark:text-zinc-600 mb-1.5">
-                    <span>To</span><span>{yearTo}</span>
-                  </div>
-                  <input
-                    type="range"
-                    min={yearFrom} max={2025}
-                    value={yearTo}
-                    onChange={e => setYearTo(Number(e.target.value))}
-                    className="w-full accent-blue-600"
-                  />
-                </div>
-              </div>
-
-              <p className="text-[12px] text-gray-400 dark:text-zinc-600 mt-3 text-center">
-                Questions randomly picked from {yearFrom} to {yearTo}
-              </p>
-            </motion.div>
-          ) : (
-            <motion.div
-              key="specific"
-              initial={{ opacity: 0, y: 6 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -6 }}
-              className="bg-zinc-900 rounded-2xl border border-zinc-800 p-4"
-            >
-              <p className="text-[13px] text-gray-500 dark:text-zinc-400 mb-3">Select a year</p>
-              <div className="grid grid-cols-4 gap-2">
-                {YEARS.slice(0, 16).map(y => (
-                  <button
-                    key={y}
-                    onClick={() => setSpecificYear(y)}
-                    className={`py-2 rounded-xl text-[13px] font-medium transition-all
-                      ${specificYear === y
-                        ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20'
-                        : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'
-                      }`}
-                  >
-                    {y}
-                  </button>
-                ))}
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+              </motion.button>
+            )
+          })}
+        </div>
       </motion.div>
 
       {/* ── Error ──────────────────────────────────────── */}
       <AnimatePresence>
         {error && (
           <motion.div
-            initial={{ opacity: 0, y: -8 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0 }}
+            initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
             className="mb-4 p-3 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20 rounded-2xl"
           >
             <p className="text-red-600 dark:text-red-400 text-[13px] text-center">{error}</p>
@@ -466,11 +284,7 @@ const HomePage = () => {
       </AnimatePresence>
 
       {/* ── Start button ───────────────────────────────── */}
-      <motion.div
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.25 }}
-      >
+      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }}>
         <motion.button
           whileTap={{ scale: 0.98 }}
           onClick={handleStart}
@@ -489,10 +303,8 @@ const HomePage = () => {
         </motion.button>
 
         <p className="text-center text-[12px] text-zinc-600 mt-3">
-          {mode === 'single'
-            ? `40–60 questions depending on subject`
-            : `180 questions · Use of English 60 · Others 40 each`
-          }
+          {questionCount ? `${questionCount} questions` : 'All questions'}
+          {mode === 'mock' ? ' per topic' : ''} · {timing === 'timed' ? 'Timed' : 'No timer'}
         </p>
       </motion.div>
 
@@ -501,46 +313,35 @@ const HomePage = () => {
         {showOngoingModal && ongoingSession && (
           <>
             <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
               className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm"
               onClick={() => setShowOngoingModal(false)}
             />
             <motion.div
-              initial={{ opacity: 0, scale: 0.9, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
+              initial={{ opacity: 0, scale: 0.9, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.9, y: 20 }}
               transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
               className="fixed inset-0 z-50 flex items-center justify-center px-4"
             >
               <div className="bg-zinc-900 border border-zinc-800 rounded-3xl p-6 w-full max-w-sm shadow-2xl">
-
-                {/* Icon */}
                 <div className="w-14 h-14 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center mx-auto mb-4">
                   <AlertTriangle size={26} className="text-amber-400" />
                 </div>
-
-                <h3 className="text-white text-[18px] font-bold text-center mb-1">
-                  Ongoing Exam Found
-                </h3>
+                <h3 className="text-white text-[18px] font-bold text-center mb-1">Ongoing Exam Found</h3>
                 <p className="text-zinc-500 text-[13px] text-center mb-5">
-                  You have an unfinished exam session. Would you like to continue or start fresh?
+                  You have an unfinished exam. Would you like to continue or start fresh?
                 </p>
 
-                {/* Session info */}
                 <div className="bg-zinc-800/50 rounded-2xl p-3 mb-5 space-y-2">
                   <div className="flex items-center justify-between">
-                    <span className="text-zinc-500 text-[12px]">Subject</span>
+                    <span className="text-zinc-500 text-[12px]">Topics</span>
                     <span className="text-white text-[12px] font-medium capitalize">
                       {ongoingSession.subjects?.join(', ')}
                     </span>
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="text-zinc-500 text-[12px]">Mode</span>
-                    <span className="text-white text-[12px] font-medium capitalize">
-                      {ongoingSession.mode}
-                    </span>
+                    <span className="text-white text-[12px] font-medium capitalize">{ongoingSession.mode}</span>
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="text-zinc-500 text-[12px]">Answered</span>
@@ -551,7 +352,6 @@ const HomePage = () => {
                 </div>
 
                 <div className="space-y-2">
-                  {/* Resume */}
                   <motion.button
                     whileTap={{ scale: 0.97 }}
                     onClick={handleResumeExam}
@@ -560,8 +360,6 @@ const HomePage = () => {
                     <PlayCircle size={16} />
                     Resume Exam
                   </motion.button>
-
-                  {/* Abandon */}
                   <motion.button
                     whileTap={{ scale: 0.97 }}
                     onClick={handleAbandonOngoing}

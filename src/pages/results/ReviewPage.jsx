@@ -131,7 +131,7 @@ const ReviewPage = () => {
             <div className="flex-1 min-w-0">
               <h1 className="text-white text-[14px] font-bold leading-none">Answer Review</h1>
               <p className="text-zinc-600 text-[11px] mt-0.5 truncate capitalize">
-                {subjects.join(' · ')} · {result.yearFrom}–{result.yearTo}
+                {subjects.join(' · ')}
               </p>
             </div>
             {/* Score pill */}

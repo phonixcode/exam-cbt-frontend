@@ -3,12 +3,12 @@ import { create } from 'zustand'
 const useExamStore = create((set, get) => ({
   session:         null,
   currentIndex:    0,
-  timeRemaining:   6000,
+  timeRemaining:   0,
   isSubmitting:    false,
 
   setSession: (session) => set({
     session,
-    timeRemaining: session?.timeAllowed || 6000,
+    timeRemaining: session?.timeAllowed ?? 0,   // 0 = untimed practice
     currentIndex:  0
   }),
 
@@ -47,7 +47,7 @@ const useExamStore = create((set, get) => ({
   clearExam: () => set({
     session:       null,
     currentIndex:  0,
-    timeRemaining: 6000,
+    timeRemaining: 0,
     isSubmitting:  false
   })
 }))

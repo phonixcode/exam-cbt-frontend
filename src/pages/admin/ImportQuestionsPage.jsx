@@ -1,19 +1,16 @@
-import { useState, useRef }        from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Upload, FileText, X, Check,
   AlertTriangle, ChevronDown, ChevronUp,
-  Save, Trash2, Eye, ArrowLeft,
+  Save, Eye, ArrowLeft,
   Loader, CheckCircle, Edit3
 } from 'lucide-react'
 import { Link }                    from 'react-router-dom'
 import toast                       from 'react-hot-toast'
 import adminService                from '@/services/admin.service'
-import { SUBJECTS }                from '@/constants/subjects'
+import questionService             from '@/services/question.service'
 import { ROUTES }                  from '@/constants/routes'
-
-const CURRENT_YEAR = new Date().getFullYear()
-const YEARS        = Array.from({ length: CURRENT_YEAR - 2000 + 1 }, (_, i) => CURRENT_YEAR - i)
 
 // ── Single parsed question preview card ───────────────────
 const QuestionCard = ({ question, index, onEdit, onRemove }) => {
@@ -40,9 +37,6 @@ const QuestionCard = ({ question, index, onEdit, onRemove }) => {
           <div className="flex items-center gap-2 mt-2">
             <span className="text-[10px] px-2 py-0.5 rounded-md bg-zinc-700 text-zinc-400 capitalize">
               {local.subject}
-            </span>
-            <span className="text-[10px] px-2 py-0.5 rounded-md bg-zinc-700 text-zinc-400">
-              {local.year}
             </span>
             <span className={`text-[10px] px-2 py-0.5 rounded-md font-medium
               ${local.type === 'mcq'
@@ -162,25 +156,14 @@ const QuestionCard = ({ question, index, onEdit, onRemove }) => {
                 </div>
               )}
 
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="text-zinc-500 text-[11px] mb-1 block">Correct Answer</label>
-                  <input
-                    value={local.correctAnswer}
-                    onChange={e => setLocal(p => ({ ...p, correctAnswer: e.target.value.toUpperCase() }))}
-                    maxLength={1}
-                    className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-3 h-9 text-white text-[13px] outline-none focus:border-blue-500/50"
-                  />
-                </div>
-                <div>
-                  <label className="text-zinc-500 text-[11px] mb-1 block">Year</label>
-                  <input
-                    type="number"
-                    value={local.year}
-                    onChange={e => setLocal(p => ({ ...p, year: parseInt(e.target.value) }))}
-                    className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-3 h-9 text-white text-[13px] outline-none focus:border-blue-500/50"
-                  />
-                </div>
+              <div>
+                <label className="text-zinc-500 text-[11px] mb-1 block">Correct Answer</label>
+                <input
+                  value={local.correctAnswer}
+                  onChange={e => setLocal(p => ({ ...p, correctAnswer: e.target.value.toUpperCase() }))}
+                  maxLength={1}
+                  className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-3 h-9 text-white text-[13px] outline-none focus:border-blue-500/50"
+                />
               </div>
 
               <div>
@@ -221,13 +204,20 @@ const ImportQuestionsPage = () => {
   const fileRef = useRef(null)
 
   const [step, setStep]             = useState('upload')   // upload | preview | done
-  const [subject, setSubject]       = useState('')
-  const [year, setYear]             = useState(CURRENT_YEAR)
+  const [subject, setSubject]       = useState('')          // topic name
+  const [existingTopics, setTopics] = useState([])
   const [file, setFile]             = useState(null)
   const [parsing, setParsing]       = useState(false)
   const [saving, setSaving]         = useState(false)
   const [questions, setQuestions]   = useState([])
   const [saveResult, setSaveResult] = useState(null)
+
+  // suggest topics that already exist so admins reuse the same name
+  useEffect(() => {
+    questionService.getFilters()
+      .then(res => setTopics(res.data?.subjects || []))
+      .catch(() => {})
+  }, [])
 
   const handleFileDrop = (e) => {
     e.preventDefault()
@@ -237,21 +227,19 @@ const ImportQuestionsPage = () => {
   }
 
   const handleParse = async () => {
-    if (!file)    return toast.error('Please select a .docx file')
-    if (!subject) return toast.error('Please select a subject')
-    if (!year)    return toast.error('Please select a year')
+    if (!file)            return toast.error('Please select a .docx file')
+    if (!subject.trim())  return toast.error('Please enter a topic')
 
     setParsing(true)
     try {
       const formData = new FormData()
       formData.append('file', file)
-      formData.append('subject', subject)
-      formData.append('year', year)
+      formData.append('subject', subject.trim())
 
       const res = await adminService.previewDocx(formData)
 
       // interceptor unwraps axios .data → res = { success, message, data }
-      // data = { total, subject, year, questions: [...] }
+      // data = { total, subject, questions: [...] }
       const safeQuestions = Array.isArray(res?.data?.questions) ? res.data.questions : []
 
       setQuestions(safeQuestions)
@@ -294,7 +282,6 @@ const ImportQuestionsPage = () => {
     setStep('upload')
     setFile(null)
     setSubject('')
-    setYear(CURRENT_YEAR)
     setQuestions([])
     setSaveResult(null)
   }
@@ -359,33 +346,22 @@ const ImportQuestionsPage = () => {
             exit={{ opacity: 0, x: -20 }}
             className="space-y-5"
           >
-            {/* Subject + Year */}
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-zinc-400 text-[12px] font-medium mb-2 block">Subject</label>
-                <select
-                  value={subject}
-                  onChange={e => setSubject(e.target.value)}
-                  className="w-full h-11 bg-zinc-900 border border-zinc-800 focus:border-violet-500/50 rounded-2xl px-3 text-white text-[13px] outline-none transition-colors appearance-none"
-                >
-                  <option value="">Select subject...</option>
-                  {SUBJECTS.map(s => (
-                    <option key={s.value} value={s.value}>{s.label}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="text-zinc-400 text-[12px] font-medium mb-2 block">Year</label>
-                <select
-                  value={year}
-                  onChange={e => setYear(parseInt(e.target.value))}
-                  className="w-full h-11 bg-zinc-900 border border-zinc-800 focus:border-violet-500/50 rounded-2xl px-3 text-white text-[13px] outline-none transition-colors appearance-none"
-                >
-                  {YEARS.map(y => (
-                    <option key={y} value={y}>{y}</option>
-                  ))}
-                </select>
-              </div>
+            {/* Topic */}
+            <div>
+              <label className="text-zinc-400 text-[12px] font-medium mb-2 block">Topic</label>
+              <input
+                list="topic-suggestions"
+                value={subject}
+                onChange={e => setSubject(e.target.value)}
+                placeholder="e.g. Anatomy and Physiology"
+                className="w-full h-11 bg-zinc-900 border border-zinc-800 focus:border-violet-500/50 rounded-2xl px-3 text-white text-[13px] outline-none transition-colors placeholder:text-zinc-600"
+              />
+              <datalist id="topic-suggestions">
+                {existingTopics.map(t => <option key={t} value={t} />)}
+              </datalist>
+              <p className="text-zinc-600 text-[11px] mt-1.5">
+                All questions in this file will be saved under this topic. Reuse an existing name to add to it.
+              </p>
             </div>
 
             {/* Drop zone */}
@@ -449,17 +425,17 @@ const ImportQuestionsPage = () => {
             <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4">
               <p className="text-zinc-400 text-[12px] font-semibold mb-3 flex items-center gap-2">
                 <Eye size={13} className="text-blue-400" />
-                Expected document format
+                Works with formats like this
               </p>
               <div className="space-y-2 text-[12px] text-zinc-600 font-mono">
-                <p className="text-zinc-400">1. Which of the following is correct?</p>
-                <p className="ml-3">A. Option one</p>
-                <p className="ml-3">B. Option two</p>
-                <p className="ml-3">C. Option three</p>
-                <p className="ml-3">D. Option four</p>
-                <p className="text-emerald-600">Answer: A</p>
-                <p className="text-blue-600">Explanation: Because...</p>
+                <p className="text-zinc-400">The functional unit of the kidney is the:</p>
+                <p className="ml-3">A. Neuron  B. Nephron  C. Alveolus  D. Osteon</p>
+                <p className="text-emerald-600">Answer: B</p>
+                <p className="text-blue-600">Explanation: (optional)</p>
               </div>
+              <p className="text-zinc-600 text-[11px] mt-3">
+                Question numbers and a year are not required — options can be on one line or separate lines.
+              </p>
             </div>
 
             <motion.button
@@ -492,7 +468,7 @@ const ImportQuestionsPage = () => {
                   {questions.length} questions parsed
                 </p>
                 <p className="text-zinc-500 text-[12px] mt-0.5 capitalize">
-                  {subject} · {year} · Review before saving
+                  {subject} · Review before saving
                 </p>
               </div>
               <div className="flex items-center gap-2">

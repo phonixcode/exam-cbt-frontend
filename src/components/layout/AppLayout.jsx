@@ -37,7 +37,7 @@ const AppLayout = () => {
             <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center shadow-lg shadow-blue-500/20">
               <GraduationCap size={16} className="text-white" />
             </div>
-            <span className="font-bold text-white text-[14px]">JAMB CBT</span>
+            <span className="font-bold text-white text-[14px]">Nursing CBT</span>
           </div>
 
           {/* Desktop nav */}

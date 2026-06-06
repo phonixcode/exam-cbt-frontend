@@ -11,7 +11,6 @@ import useTimer            from '@/hooks/useTimer'
 import useExamStore        from '@/store/exam.store'
 import examService         from '@/services/exam.service'
 import { formatTime, getTimerColor } from '@/utils/time.utils'
-import { JAMB_TIME_ALLOWED }         from '@/constants/subjects'
 import { buildRoute, ROUTES }        from '@/constants/routes'
 import OptionButton        from '@/components/exam/OptionButton'
 import Calculator          from '@/components/exam/Calculator'
@@ -51,6 +50,8 @@ const ExamPage = () => {
   }, [sessionId])
 
 
+  const isTimed = (session?.timeAllowed ?? 0) > 0
+
   const { timeRemaining } = useTimer({
     onTimeUp: useCallback(() => {
       if (!isSubmitting) {
@@ -58,7 +59,7 @@ const ExamPage = () => {
         setTimeout(() => submitExam(session?.timeAllowed), 500)
       }
     }, [isSubmitting, submitExam, session]),
-    autoStart: true
+    autoStart: isTimed
   })
 
   const handleAnswer = (answer) => {
@@ -81,7 +82,8 @@ const ExamPage = () => {
   }
 
   const handleSubmit = () => {
-    submitExam(session?.timeAllowed || JAMB_TIME_ALLOWED)
+    const used = isTimed ? (session.timeAllowed - timeRemaining) : 0
+    submitExam(used)
   }
 
   if (!token) return <Navigate to={ROUTES.LOGIN} replace />
@@ -101,7 +103,7 @@ const ExamPage = () => {
   const selectedAnswer = currentAnswer?.userAnswer
   const isFlagged      = currentAnswer?.isFlagged
   const isMCQ          = question?.type === 'mcq'
-  const timerColor     = getTimerColor(timeRemaining, session.timeAllowed || JAMB_TIME_ALLOWED)
+  const timerColor     = isTimed ? getTimerColor(timeRemaining, session.timeAllowed) : 'text-zinc-500'
   const subject        = currentAnswer?.question?.subject || session.subjects[0]
 
   // current subject question index (for label)
@@ -164,9 +166,11 @@ const ExamPage = () => {
               })}
             </div>
 
-            {/* Timer */}
+            {/* Timer (hidden in untimed practice) */}
             <div className={`flex items-center bg-zinc-900 border border-zinc-800 rounded-xl px-2.5 py-1 font-mono shrink-0 ${timerColor}`}>
-              <span className="text-[13px] font-bold">{formatTime(timeRemaining)}</span>
+              <span className="text-[13px] font-bold">
+                {isTimed ? formatTime(timeRemaining) : 'Practice'}
+              </span>
             </div>
           </div>
 

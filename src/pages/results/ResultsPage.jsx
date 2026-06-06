@@ -8,7 +8,7 @@ import {
 } from 'lucide-react'
 import resultsService          from '@/services/results.service'
 import { formatDuration, formatDateTime } from '@/utils/time.utils'
-import { getGrade, getPerformanceMessage, calcPercentage, getJambLabel } from '@/utils/score.utils'
+import { getGrade, getPerformanceMessage, calcPercentage, getScoreLabel, isPass } from '@/utils/score.utils'
 import { buildRoute, ROUTES }  from '@/constants/routes'
 
 const StatCard = ({ icon: Icon, label, value, sub, color = 'text-blue-400' }) => (
@@ -40,10 +40,10 @@ const ResultsPage = () => {
 
   if (!result) return null
 
-  const grade      = getGrade(result.jambTotal, result.totalPercentage)
+  const grade      = getGrade(result.totalPercentage)
   const message    = getPerformanceMessage(result.totalPercentage)
   const timeTaken  = formatDuration(result.timeTaken)
-  const timeLeft   = formatDuration(result.timeAllowed - result.timeTaken)
+  const passed     = isPass(result)
 
   return (
     <div className="max-w-2xl mx-auto pb-24 md:pb-8">
@@ -85,16 +85,23 @@ const ResultsPage = () => {
           <p className="text-zinc-500 text-[14px] mt-2 max-w-xs mx-auto">{message}</p>
         </motion.div>
 
-        {/* JAMB score */}
+        {/* Score + pass/fail */}
         <motion.div
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ delay: 0.4 }}
-          className="inline-flex items-center gap-2 mt-5 px-5 py-2.5 bg-blue-600/10 border border-blue-500/30 rounded-2xl"
+          className="flex items-center justify-center gap-2 mt-5"
         >
-          <Trophy size={16} className="text-blue-400" />
-          <span className="text-blue-400 text-[14px] font-semibold">
-              JAMB Score: {getJambLabel(result)}
+          <span className="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600/10 border border-blue-500/30 rounded-2xl text-blue-400 text-[14px] font-semibold">
+            <Trophy size={16} />
+            Score: {getScoreLabel(result)}
+          </span>
+          <span className={`inline-flex items-center px-4 py-2.5 rounded-2xl text-[14px] font-semibold border
+            ${passed
+              ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
+              : 'bg-red-500/10 border-red-500/30 text-red-400'}`}
+          >
+            {passed ? 'Passed' : 'Failed'}
           </span>
         </motion.div>
       </motion.div>
@@ -124,7 +131,7 @@ const ResultsPage = () => {
           icon={Clock}
           label="Time Used"
           value={timeTaken}
-          sub={`${timeLeft} remaining`}
+          sub={result.timeAllowed ? 'timed' : 'no timer'}
           color="text-amber-400"
         />
         <StatCard
@@ -179,10 +186,6 @@ const ResultsPage = () => {
                       animate={{ width: `${pct}%` }}
                       transition={{ duration: 0.8, delay: 0.6 + i * 0.1, ease: [0.22, 1, 0.36, 1] }}
                     />
-                  </div>
-                  <div className="flex items-center justify-between mt-1">
-                    <span className="text-zinc-600 text-[10px]">JAMB Score</span>
-                    <span className="text-zinc-500 text-[11px] font-medium">{ss.jambScore.toFixed(0)}/100</span>
                   </div>
                 </motion.div>
               )
@@ -257,15 +260,15 @@ const ResultsPage = () => {
             <p className="text-white font-medium capitalize mt-0.5">{result.mode}</p>
           </div>
           <div>
-            <p className="text-zinc-600">Year Range</p>
-            <p className="text-white font-medium mt-0.5">{result.yearFrom} — {result.yearTo}</p>
+            <p className="text-zinc-600">Pass Mark</p>
+            <p className="text-white font-medium mt-0.5">{result.passMark ?? 50}%</p>
           </div>
           <div>
             <p className="text-zinc-600">Date</p>
             <p className="text-white font-medium mt-0.5">{formatDateTime(result.completedAt)}</p>
           </div>
           <div>
-            <p className="text-zinc-600">Subjects</p>
+            <p className="text-zinc-600">Topics</p>
             <p className="text-white font-medium mt-0.5 capitalize">{result.subjects.join(', ')}</p>
           </div>
         </div>
