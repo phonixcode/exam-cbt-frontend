@@ -7,7 +7,6 @@ const api = axios.create({
   timeout: 30000
 })
 
-// ─── Request interceptor — attach token ───────────────────
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('jamb_token')
@@ -17,7 +16,6 @@ api.interceptors.request.use(
   (error) => Promise.reject(error)
 )
 
-// ─── Response interceptor — handle errors globally ────────
 api.interceptors.response.use(
   (response) => response.data,
   (error) => {
